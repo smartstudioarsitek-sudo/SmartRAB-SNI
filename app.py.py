@@ -176,12 +176,26 @@ with tab3:
     cari = st.text_input("Cari nama bahan/upah (misal: Semen, Tukang)...")
     
     if sheet_upah:
+        # Ambil kolom C (Uraian), D (Satuan), E (Harga) - Index 2,3,4
         df_display = data_excel[sheet_upah].iloc[:, [2, 3, 4]]
         df_display.columns = ["Uraian", "Satuan", "Harga"]
         
+        # --- PERBAIKAN ANTI ERROR DI SINI ---
+        # 1. Paksa kolom Harga jadi angka (kalau huruf jadi NaN/Kosong)
+        df_display["Harga"] = pd.to_numeric(df_display["Harga"], errors='coerce')
+        
+        # 2. Isi yang kosong dengan Angka 0
+        df_display["Harga"] = df_display["Harga"].fillna(0)
+        # ------------------------------------
+
         if cari:
+            # Filter pencarian (case insensitive)
             df_display = df_display[df_display['Uraian'].astype(str).str.contains(cari, case=False, na=False)]
             
-        st.dataframe(df_display.style.format({"Harga": "Rp {:,.0f}"}), use_container_width=True)
+        # Tampilkan Dataframe dengan format Rupiah
+        st.dataframe(
+            df_display.style.format({"Harga": "Rp {:,.0f}"}), 
+            use_container_width=True
+        )
     else:
         st.error("Sheet Upah tidak ditemukan.")
