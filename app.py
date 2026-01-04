@@ -21,12 +21,33 @@ def initialize_data():
             st.session_state[key] = val
 
     if 'df_prices' not in st.session_state:
+        # UPDATE: Penambahan Data Upah (Mandor, Kepala Tukang, Tukang Las)
         data_prices = {
-            'Kode': ['M.01', 'M.02', 'M.03', 'L.01', 'L.02', 'E.01'],
-            'Komponen': ['Semen Portland', 'Pasir Beton', 'Batu Kali', 'Pekerja', 'Tukang Batu', 'Sewa Molen'],
-            'Satuan': ['kg', 'kg', 'm3', 'OH', 'OH', 'Jam'],
-            'Harga_Dasar': [1300, 300, 286500, 100000, 145000, 85000],
-            'Kategori': ['Material', 'Material', 'Material', 'Upah', 'Upah', 'Alat']
+            'Kode': [
+                'M.01', 'M.02', 'M.03', 
+                'L.01', 'L.02', 'L.03', 'L.04', 'L.05', 
+                'E.01'
+            ],
+            'Komponen': [
+                'Semen Portland', 'Pasir Beton', 'Batu Kali', 
+                'Pekerja', 'Tukang Batu', 'Kepala Tukang', 'Mandor', 'Tukang Las', 
+                'Sewa Molen'
+            ],
+            'Satuan': [
+                'kg', 'kg', 'm3', 
+                'OH', 'OH', 'OH', 'OH', 'OH', 
+                'Jam'
+            ],
+            'Harga_Dasar': [
+                1300, 300, 286500, 
+                100000, 145000, 175000, 200000, 145000, 
+                85000
+            ],
+            'Kategori': [
+                'Material', 'Material', 'Material', 
+                'Upah', 'Upah', 'Upah', 'Upah', 'Upah', 
+                'Alat'
+            ]
         }
         st.session_state['df_prices'] = pd.DataFrame(data_prices)
 
@@ -151,43 +172,25 @@ def generate_s_curve_data():
 # --- 4. Helper UI Components & Printing ---
 
 def render_print_style():
-    """Inject CSS khusus untuk mode cetak agar rapi"""
     st.markdown("""
         <style>
             @media print {
-                /* Sembunyikan elemen bawaan Streamlit yang mengganggu saat print */
                 [data-testid="stHeader"], 
                 [data-testid="stSidebar"], 
                 [data-testid="stToolbar"], 
                 footer, 
-                .stDeployButton {
-                    display: none !important;
-                }
-                
-                /* Atur konten utama agar full width dan bersih */
-                .main .block-container {
-                    max-width: 100% !important;
-                    padding: 1rem !important;
-                    box-shadow: none !important;
-                }
-                
-                /* Paksa background putih dan text hitam */
-                body {
-                    background-color: white !important;
-                    color: black !important;
-                }
+                .stDeployButton { display: none !important; }
+                .main .block-container { max-width: 100% !important; padding: 1rem !important; box-shadow: none !important; }
+                body { background-color: white !important; color: black !important; }
             }
         </style>
     """, unsafe_allow_html=True)
 
 def render_print_button():
-    """Tombol Print yang memanggil window.parent.print()"""
     components.html(
         """
         <script>
-            function cetak() {
-                window.parent.print();
-            }
+            function cetak() { window.parent.print(); }
         </script>
         <div style="text-align: right;">
             <button onclick="cetak()" style="
@@ -394,10 +397,9 @@ def render_sni_html(kode, uraian, df_part, overhead_pct):
 # --- 5. Main UI ---
 def main():
     initialize_data()
-    render_print_style() # Inject CSS Print
+    render_print_style() 
     
     st.title("🏗️ SmartRAB-SNI")
-    # MENAMBAHKAN SUB-JUDUL KECIL DI SINI
     st.caption("Sistem Integrated RAB & Material Control")
     
     tabs = st.tabs([
@@ -412,16 +414,11 @@ def main():
     # === TAB 1: REKAPITULASI ===
     with tabs[0]:
         st.header("Rekapitulasi Biaya (Engineering Estimate)")
-        
-        # TOMBOL PRINT
         render_print_button()
-        
         col_main, col_set = st.columns([2, 1])
         
         with col_set:
             st.markdown("### ⚙️ Pengaturan & Identitas")
-            
-            # --- INPUT IDENTITAS PROYEK ---
             st.markdown("**Identitas Proyek**")
             p_name = st.text_input("Nama Pekerjaan", value=st.session_state['project_name'])
             p_loc = st.text_input("Lokasi", value=st.session_state['project_loc'])
@@ -462,7 +459,6 @@ def main():
         
         with col_main:
             render_project_identity()
-            
             st.markdown("### Tabel Rekapitulasi")
             st.dataframe(
                 rekap_divisi, 
@@ -473,7 +469,6 @@ def main():
                     "Total_Harga": st.column_config.NumberColumn("TOTAL (Rp)", format="Rp %d")
                 }
             )
-            
             st.markdown(f"""
             <div style="text-align: right; font-size: 16px; margin-top: 10px;">
                 <b>TOTAL BIAYA : Rp {total_biaya:,.0f}</b><br>
@@ -489,7 +484,6 @@ def main():
     # === TAB 2: RAB ===
     with tabs[1]:
         st.header("Rencana Anggaran Biaya")
-        
         render_print_button()
         render_project_identity()
 
@@ -543,7 +537,6 @@ def main():
     with tabs[2]:
         st.header("Detail Analisa (AHSP)")
         render_print_button()
-        
         col_sel, col_ov = st.columns([3, 1])
         with col_sel:
             df_det = st.session_state['df_analysis_detailed']
@@ -562,7 +555,6 @@ def main():
     with tabs[3]:
         st.header("Master Harga Satuan")
         render_print_button()
-        
         edited_prices = st.data_editor(st.session_state['df_prices'], num_rows="dynamic", use_container_width=True, 
                                        column_config={"Harga_Dasar": st.column_config.NumberColumn(format="Rp %d"), "Kategori": st.column_config.SelectboxColumn(options=['Upah', 'Material', 'Alat'], required=True)})
         if not edited_prices.equals(st.session_state['df_prices']):
@@ -580,7 +572,6 @@ def main():
     with tabs[4]:
         st.header("Rekap Material (Real Cost)")
         render_print_button()
-        
         if 'df_material_rekap' in st.session_state:
             st.dataframe(st.session_state['df_material_rekap'], use_container_width=True, hide_index=True, 
                          column_config={"Total_Biaya_Material": st.column_config.NumberColumn(format="Rp %d"), "Total_Kebutuhan_Material": st.column_config.NumberColumn(format="%.2f")})
@@ -600,7 +591,6 @@ def main():
     with tabs[5]:
         st.header("📈 Kurva S - Jadwal Proyek")
         render_print_button()
-        
         df_rab_curve, df_curve_data = generate_s_curve_data()
         
         if df_curve_data is not None:
@@ -610,13 +600,10 @@ def main():
                 tooltip=['Minggu', 'Rencana_Kumulatif']
             ).interactive()
             st.altair_chart(chart, use_container_width=True)
-            
             with st.expander("Lihat Data Mingguan"):
                  st.dataframe(df_curve_data.set_index('Minggu'), use_container_width=True)
-            
         else:
             st.warning("Data RAB belum lengkap.")
-        
         render_footer()
 
 if __name__ == "__main__":
