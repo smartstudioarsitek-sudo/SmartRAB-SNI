@@ -65,54 +65,68 @@ def initialize_data():
 
 # --- 2. Mesin Logika Utama ---
 def calculate_system():
+    # Ambil data dari session state
     df_p = st.session_state['df_prices'].copy()
     df_a = st.session_state['df_analysis'].copy()
     df_r = st.session_state['df_rab'].copy()
     
-    if df_r.empty:
-        return
-
+    # 1. HITUNG AHSP (WAJIB JALAN MESKIPUN RAB KOSONG)
+    # Ini memperbaiki Error KeyError: 'df_analysis_detailed'
+    
     overhead_pct = st.session_state.get('global_overhead', 15.0)
     overhead_factor = 1 + (overhead_pct / 100)
 
     df_p['Key'] = df_p['Komponen'].str.strip().str.lower()
     df_a['Key'] = df_a['Komponen'].str.strip().str.lower()
 
-    # 1. Hitung Harga Satuan per Analisa
+    # Merge Analysis dengan Harga Dasar
     merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan', 'Kategori']], on='Key', how='left')
+    
+    # Handle NaN
     merged_analysis['Harga_Dasar'] = merged_analysis['Harga_Dasar'].fillna(0)
+    merged_analysis['Satuan'] = merged_analysis['Satuan'].fillna('-')
+    merged_analysis['Kategori'] = merged_analysis['Kategori'].fillna('Material')
+    
+    # Hitung Subtotal per baris komponen
     merged_analysis['Subtotal'] = merged_analysis['Koefisien'] * merged_analysis['Harga_Dasar']
     
+    # SIMPAN KE STATE (Agar Tab 3 tidak error)
     st.session_state['df_analysis_detailed'] = merged_analysis 
 
+    # Hitung Harga Satuan Jadi per Item Pekerjaan
     unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
     unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_factor 
     
-    # 2. Update RAB (Linking Kode_Analisa_Ref Excel -> Database App)
-    df_r_temp = pd.merge(df_r, unit_prices_pure[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
-    
-    df_r['Harga_Satuan_Jadi'] = df_r_temp['Harga_Kalkulasi'].fillna(0)
-    df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
-    
-    st.session_state['df_rab'] = df_r
+    # 2. UPDATE RAB (Hanya jika RAB ada isinya)
+    if not df_r.empty:
+        # Link RAB dengan Harga Satuan Jadi
+        df_r_temp = pd.merge(df_r, unit_prices_pure[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
+        
+        df_r['Harga_Satuan_Jadi'] = df_r_temp['Harga_Kalkulasi'].fillna(0)
+        df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
+        
+        st.session_state['df_rab'] = df_r
 
-    # 3. Hitung Rekap Material
-    material_breakdown = pd.merge(
-        df_r[['Kode_Analisa_Ref', 'Volume']], 
-        merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
-        left_on='Kode_Analisa_Ref', 
-        right_on='Kode_Analisa', 
-        how='left'
-    )
-    material_breakdown['Total_Kebutuhan_Material'] = material_breakdown['Volume'] * material_breakdown['Koefisien']
-    material_breakdown['Total_Biaya_Material'] = material_breakdown['Total_Kebutuhan_Material'] * material_breakdown['Harga_Dasar']
-    
-    rekap_final = material_breakdown.groupby(['Komponen', 'Satuan']).agg({
-        'Total_Kebutuhan_Material': 'sum',
-        'Total_Biaya_Material': 'sum'
-    }).reset_index()
-    
-    st.session_state['df_material_rekap'] = rekap_final
+        # 3. HITUNG REKAP MATERIAL
+        material_breakdown = pd.merge(
+            df_r[['Kode_Analisa_Ref', 'Volume']], 
+            merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
+            left_on='Kode_Analisa_Ref', 
+            right_on='Kode_Analisa', 
+            how='left'
+        )
+        material_breakdown['Total_Kebutuhan_Material'] = material_breakdown['Volume'] * material_breakdown['Koefisien']
+        material_breakdown['Total_Biaya_Material'] = material_breakdown['Total_Kebutuhan_Material'] * material_breakdown['Harga_Dasar']
+        
+        rekap_final = material_breakdown.groupby(['Komponen', 'Satuan']).agg({
+            'Total_Kebutuhan_Material': 'sum',
+            'Total_Biaya_Material': 'sum'
+        }).reset_index()
+        
+        st.session_state['df_material_rekap'] = rekap_final
+    else:
+        # Jika RAB kosong, buat DataFrame kosong agar Tab 5 tidak error
+        st.session_state['df_material_rekap'] = pd.DataFrame(columns=['Komponen', 'Satuan', 'Total_Kebutuhan_Material', 'Total_Biaya_Material'])
 
 # --- 3. Logic Kurva S ---
 def generate_s_curve_data():
@@ -124,7 +138,7 @@ def generate_s_curve_data():
 
     df['Bobot_Pct'] = (df['Total_Harga'] / grand_total) * 100
     
-    # Handle NaN values for duration columns
+    # Handle NaN
     df['Durasi_Minggu'] = df['Durasi_Minggu'].fillna(1).astype(int)
     df['Minggu_Mulai'] = df['Minggu_Mulai'].fillna(1).astype(int)
 
@@ -157,43 +171,32 @@ def generate_s_curve_data():
 # --- 4. Helper UI Components & Excel Generators ---
 
 def generate_full_template():
-    """
-    Membuat Template Excel yang strukturnya MIRIP PDF USER.
-    Kolom 'Kode_Analisa_Ref' sudah diisi untuk item yang ada di database dummy.
-    """
-    # Struktur Data Mirip PDF
+    """Membuat Template Excel yang strukturnya MIRIP PDF USER"""
     data = [
-        # (Divisi, No, Uraian, Kode_Analisa_Ref, Satuan)
         ("I. PENERAPAN SMKK", "1", "Penyiapan RKK", "", "Ls"),
         ("I. PENERAPAN SMKK", "2", "Sosialisasi Promosi Pelatihan", "", "Ls"),
         ("I. PENERAPAN SMKK", "3", "Alat Pelindung Kerja (APK) & APD", "", "Ls"),
-        
         ("II. PEKERJAAN PERSIAPAN", "1", "Pekerjaan Pembongkaran", "", "Ls"),
         ("II. PEKERJAAN PERSIAPAN", "2", "Persiapan Area Pembangunan", "", "Ls"),
-        
         ("III. PEKERJAAN STRUKTUR BAWAH", "A.1", "Fondasi Bore Pile", "", "m'"),
         ("III. PEKERJAAN STRUKTUR BAWAH", "A.2", "Pekerjaan Pile Cap", "", "m3"),
-        ("III. PEKERJAAN STRUKTUR BAWAH", "B.1", "Pekerjaan Pondasi Batu Kali", "A.2.2.1", "m3"), # LINKED!
-        ("III. PEKERJAAN STRUKTUR BAWAH", "B.2", "Pekerjaan Sloof 150x200", "A.4.1.1", "m3"), # LINKED!
-        
-        ("IV. PEKERJAAN STRUKTUR ATAS", "A.1", "Kolom Utama Lantai 1", "A.4.1.1", "m3"), # LINKED!
-        ("IV. PEKERJAAN STRUKTUR ATAS", "A.2", "Balok Utama Lantai 1", "A.4.1.1", "m3"), # LINKED!
-        ("IV. PEKERJAAN STRUKTUR ATAS", "A.4", "Plat Lantai 2", "A.4.1.1", "m3"), # LINKED!
-        
+        ("III. PEKERJAAN STRUKTUR BAWAH", "B.1", "Pekerjaan Pondasi Batu Kali", "A.2.2.1", "m3"), 
+        ("III. PEKERJAAN STRUKTUR BAWAH", "B.2", "Pekerjaan Sloof 150x200", "A.4.1.1", "m3"),
+        ("IV. PEKERJAAN STRUKTUR ATAS", "A.1", "Kolom Utama Lantai 1", "A.4.1.1", "m3"), 
+        ("IV. PEKERJAAN STRUKTUR ATAS", "A.2", "Balok Utama Lantai 1", "A.4.1.1", "m3"), 
+        ("IV. PEKERJAAN STRUKTUR ATAS", "A.4", "Plat Lantai 2", "A.4.1.1", "m3"), 
         ("V. PEKERJAAN ARSITEKTUR", "A.1", "Pasangan Dinding & Plesteran", "", "m2"),
         ("V. PEKERJAAN ARSITEKTUR", "B.1", "Pekerjaan Lantai", "", "m2"),
         ("V. PEKERJAAN ARSITEKTUR", "C.1", "Pekerjaan Plafond", "", "m2"),
         ("V. PEKERJAAN ARSITEKTUR", "D.1", "Pintu dan Jendela", "", "Unit"),
-        
         ("VI. PEKERJAAN PLUMBING", "A", "Pekerjaan Sanitair", "", "Bh"),
         ("VI. PEKERJAAN PLUMBING", "B", "Instalasi Air Bersih", "", "m'"),
-        
         ("VII. PEKERJAAN ELEKTRIKAL", "A", "Instalasi Kabel Feeder", "", "m'"),
         ("VII. PEKERJAAN ELEKTRIKAL", "B", "Instalasi Penerangan", "", "Titik"),
     ]
     
     df = pd.DataFrame(data, columns=["Divisi", "No", "Uraian_Pekerjaan", "Kode_Analisa_Ref", "Satuan_Pek"])
-    df["Volume"] = 0.0 # User isi ini
+    df["Volume"] = 0.0 
     df["Durasi_Minggu"] = 1
     df["Minggu_Mulai"] = 1
     
@@ -201,59 +204,39 @@ def generate_full_template():
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     df.to_excel(writer, index=False, sheet_name='Template_RAB')
     
-    # Formatting Excel agar user paham
     workbook = writer.book
     worksheet = writer.sheets['Template_RAB']
-    
-    # Highlight Kolom Volume (Kuning) agar user tahu harus isi disitu
     fmt_input = workbook.add_format({'bg_color': '#FFFF00', 'border': 1})
     worksheet.set_column('F:F', 15, fmt_input) # Kolom F adalah Volume
-    
-    # Kolom Kode Analisa (Abu-abu, jangan dihapus)
-    fmt_locked = workbook.add_format({'bg_color': '#D3D3D3', 'font_color': 'red'})
-    worksheet.set_column('D:D', 20, fmt_locked)
-    
     writer.close()
     return output.getvalue()
 
 def load_excel_rab_smart(uploaded_file):
     try:
         df_new = pd.read_excel(uploaded_file)
-        
-        # Validasi Kolom Minimal
         required = ['Uraian_Pekerjaan', 'Volume']
         if not set(required).issubset(df_new.columns):
             st.error("Format Excel salah! Gunakan Template yang disediakan.")
             return
 
-        # Filter: Hanya ambil baris yang Volumenya diisi > 0
-        # Ini otomatis membuang baris Judul Bab (Header) yang tidak ada volumenya
         df_clean = df_new[df_new['Volume'] > 0].copy()
-        
         if df_clean.empty:
-            st.warning("Tidak ada item pekerjaan dengan Volume > 0 yang ditemukan.")
+            st.warning("Tidak ada item pekerjaan dengan Volume > 0.")
             return
 
-        # Reset hitungan harga
         df_clean['Harga_Satuan_Jadi'] = 0
         df_clean['Total_Harga'] = 0
-        
-        # Pastikan kolom Kode_Analisa_Ref ada (kalau user pakai template lama)
-        if 'Kode_Analisa_Ref' not in df_clean.columns:
-            df_clean['Kode_Analisa_Ref'] = ""
-            
-        # Isi default durasi jika kosong
+        if 'Kode_Analisa_Ref' not in df_clean.columns: df_clean['Kode_Analisa_Ref'] = ""
         if 'Durasi_Minggu' not in df_clean.columns: df_clean['Durasi_Minggu'] = 1
         if 'Minggu_Mulai' not in df_clean.columns: df_clean['Minggu_Mulai'] = 1
         
         st.session_state['df_rab'] = df_clean
-        calculate_system() # TRIGGER LINKING OTOMATIS
+        calculate_system() 
         st.success(f"Berhasil mengimport {len(df_clean)} item pekerjaan!")
-        
     except Exception as e:
         st.error(f"Gagal membaca file: {e}")
 
-# ... (Fungsi Print, PDF, Excel lain tetap sama) ...
+# ... (Render Functions: Print, PDF, Excel) ...
 def render_print_style():
     st.markdown("""<style>@media print {[data-testid="stHeader"],[data-testid="stSidebar"],[data-testid="stToolbar"],footer,.stDeployButton{display:none!important}.main .block-container{max-width:100%!important;padding:1rem!important}body{background-color:white!important;color:black!important}}</style>""", unsafe_allow_html=True)
 
@@ -287,7 +270,6 @@ def generate_rekap_final_excel(df_rekap, ppn_pct, pt_name, signer, position):
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
     worksheet = workbook.add_worksheet('Rekapitulasi')
-    # ... (Code Excel formatting sama seperti sebelumnya) ...
     fmt_header = workbook.add_format({'bold': True, 'border': 1, 'align': 'center', 'bg_color': '#D3D3D3'})
     fmt_currency = workbook.add_format({'num_format': '#,##0', 'border': 1})
     fmt_text = workbook.add_format({'border': 1})
@@ -347,10 +329,9 @@ def load_excel_prices(uploaded_file):
         st.session_state['df_prices'] = df_new
         calculate_system()
         st.success("Harga berhasil diupdate!")
-    except: st.error("Gagal")
+    except: st.error("Gagal membaca file")
 
 def render_sni_html(kode, uraian, df_part, overhead_pct):
-    # ... (Fungsi render SNI tetap sama) ...
     cat_map = {'Upah': 'TENAGA KERJA', 'Material': 'BAHAN', 'Alat': 'PERALATAN'}
     groups = {'Upah': [], 'Material': [], 'Alat': []}
     totals = {'Upah': 0, 'Material': 0, 'Alat': 0}
@@ -520,7 +501,7 @@ def main():
         render_footer()
 
     # === TAB 3 (AHSP), 4 (Harga), 5 (Material), 6 (Kurva S) ===
-    # (Kode untuk Tab 3, 4, 5, 6 SAMA PERSIS dengan sebelumnya, saya singkat biar muat)
+    # (Kode untuk Tab 3, 4, 5, 6 SAMA PERSIS dengan sebelumnya)
     with tabs[2]:
         st.header("Detail Analisa (AHSP)")
         render_print_button()
