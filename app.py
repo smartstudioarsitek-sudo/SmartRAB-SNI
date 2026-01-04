@@ -35,10 +35,9 @@ def initialize_data():
 
     if 'df_rab' not in st.session_state:
         # Data RAB (Volume Project)
-        # UPDATE: Tambah kolom 'Divisi' untuk pengelompokan di Rekap Tab 1
         data_rab = {
             'No': [1, 2],
-            'Divisi': ['PEKERJAAN STRUKTUR BAWAH', 'PEKERJAAN STRUKTUR ATAS'], # Kategori Baru
+            'Divisi': ['PEKERJAAN STRUKTUR BAWAH', 'PEKERJAAN STRUKTUR ATAS'], 
             'Uraian_Pekerjaan': ['Pondasi Batu Kali 1:4', 'Beton Mutu fc 25 Mpa'],
             'Kode_Analisa_Ref': ['A.2.2.1', 'A.4.1.1'],
             'Satuan_Pek': ['m3', 'm3'],
@@ -102,7 +101,16 @@ def calculate_system():
     
     st.session_state['df_material_rekap'] = rekap_final
 
-# --- 3. Fungsi Helper Excel ---
+# --- 3. Fungsi Helper Excel & Format ---
+
+def render_footer():
+    """Menampilkan footer di setiap tab"""
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: grey; font-size: 12px;">
+        by SmartStudio, email smartstudioarsitek@gmail.com
+    </div>
+    """, unsafe_allow_html=True)
 
 def generate_excel_template(data_dict, sheet_name):
     output = io.BytesIO()
@@ -120,7 +128,6 @@ def to_excel_download(df, sheet_name="Sheet1"):
     return output.getvalue()
 
 def generate_rekap_final_excel(df_rekap, ppn_pct, pt_name, signer, position):
-    """Fungsi khusus untuk membuat Excel Rekapitulasi (Tab 1) mirip Gambar 1B"""
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
@@ -293,12 +300,13 @@ def main():
         
         with col_set:
             st.markdown("### Pengaturan Laporan")
+            # DEFAULT VALUES SESUAI PERMINTAAN
             ppn_input = st.number_input("PPN (%)", value=11.0, step=1.0)
-            pt_input = st.text_input("Nama Perusahaan (Kop)", value="CV. KARYA MANDIRI")
-            signer_input = st.text_input("Nama Penandatangan", value="Ir. Budi Santoso")
-            pos_input = st.text_input("Jabatan", value="Direktur Utama")
+            pt_input = st.text_input("Nama Perusahaan (Kop)", value="SMARTSTUDIO")
+            signer_input = st.text_input("Nama Penandatangan", value="WARTO SANTOSO, ST")
+            pos_input = st.text_input("Jabatan", value="LEADER")
         
-        # Kelompokkan RAB berdasarkan 'Divisi' (Kategori Pekerjaan)
+        # Kelompokkan RAB berdasarkan 'Divisi'
         df_rab = st.session_state['df_rab']
         if 'Divisi' in df_rab.columns:
             rekap_divisi = df_rab.groupby('Divisi')['Total_Harga'].sum().reset_index()
@@ -313,10 +321,10 @@ def main():
             # Tampilkan Tabel Rekap
             st.markdown("### Tabel Rekapitulasi")
             
-            # Format display dataframe simple
             rekap_display = rekap_divisi.copy()
             rekap_display.columns = ['URAIAN PEKERJAAN', 'TOTAL (Rp)']
-            st.dataframe(rekap_display, use_container_width=True, hide_index=True)
+            st.dataframe(rekap_display, use_container_width=True, hide_index=True, 
+                         column_config={"TOTAL (Rp)": st.column_config.NumberColumn(format="Rp %d")})
             
             # Tampilkan Total Bawah
             st.markdown(f"""
@@ -335,6 +343,9 @@ def main():
             file_name="1_Rekapitulasi_Biaya.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        
+        # FOOTER
+        render_footer()
 
     # === TAB 2: RAB ===
     with tabs[1]:
@@ -396,6 +407,9 @@ def main():
             file_name="2_RAB_Detail.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        
+        # FOOTER
+        render_footer()
 
     # === TAB 3: AHSP SNI ===
     with tabs[2]:
@@ -429,6 +443,9 @@ def main():
             file_name="3_Data_Analisa_AHSP.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        
+        # FOOTER
+        render_footer()
 
     # === TAB 4: HARGA SATUAN ===
     with tabs[3]:
@@ -476,6 +493,9 @@ def main():
             file_name="4_Master_Harga_Satuan.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        
+        # FOOTER
+        render_footer()
 
     # === TAB 5: REKAP MATERIAL ===
     with tabs[4]:
@@ -502,6 +522,9 @@ def main():
             )
         else:
             st.warning("Data belum tersedia.")
+            
+        # FOOTER
+        render_footer()
 
 if __name__ == "__main__":
     main()
