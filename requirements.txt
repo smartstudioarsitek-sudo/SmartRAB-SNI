@@ -1,4 +1,7 @@
 streamlit
 pandas
+altair
 xlsxwriter
 openpyxl
+thefuzz
+python-levenshtein
