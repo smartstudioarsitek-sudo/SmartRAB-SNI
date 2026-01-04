@@ -6,11 +6,10 @@ import xlsxwriter
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="Sistem RAB Pro SNI", layout="wide")
 
-# --- 1. Inisialisasi Data (Dummy Data) ---
+# --- 1. Inisialisasi Data ---
 def initialize_data():
     if 'df_prices' not in st.session_state:
         # Data Harga Dasar (Resources)
-        # Note: Kolom 'Kategori' sangat PENTING untuk format SNI (Upah/Material/Alat)
         data_prices = {
             'Kode': ['M.01', 'M.02', 'M.03', 'L.01', 'L.02', 'E.01'],
             'Komponen': ['Semen Portland', 'Pasir Beton', 'Batu Kali', 'Pekerja', 'Tukang Batu', 'Sewa Molen'],
@@ -60,22 +59,21 @@ def calculate_system():
     df_a['Key'] = df_a['Komponen'].str.strip().str.lower()
 
     # 1. Hitung Harga Satuan per Analisa
-    # UPDATE: Kita tarik juga kolom 'Kategori' untuk pengelompokan SNI
     merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan', 'Kategori']], on='Key', how='left')
     
     merged_analysis['Harga_Dasar'] = merged_analysis['Harga_Dasar'].fillna(0)
     merged_analysis['Satuan'] = merged_analysis['Satuan'].fillna('-')
-    merged_analysis['Kategori'] = merged_analysis['Kategori'].fillna('Material') # Default jika tidak ada kategori
+    merged_analysis['Kategori'] = merged_analysis['Kategori'].fillna('Material')
     
     merged_analysis['Subtotal'] = merged_analysis['Koefisien'] * merged_analysis['Harga_Dasar']
     
     st.session_state['df_analysis_detailed'] = merged_analysis 
 
     # Agregat Harga Satuan Jadi (Total Murni sebelum Overhead user input)
-    overhead_default = 1.15 # Asumsi 15% untuk RAB otomatis
+    overhead_default = 1.15 
     
     unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
-    unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_default # Masukkan overhead ke RAB
+    unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_default 
     
     # 2. Update RAB
     df_r_temp = pd.merge(df_r, unit_prices_pure[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
@@ -95,7 +93,6 @@ def calculate_system():
     material_breakdown['Total_Kebutuhan_Material'] = material_breakdown['Volume'] * material_breakdown['Koefisien']
     material_breakdown['Total_Biaya_Material'] = material_breakdown['Total_Kebutuhan_Material'] * material_breakdown['Harga_Dasar']
     
-    # --- BAGIAN YANG DIPERBAIKI (Quote 'sum' ditutup dengan benar) ---
     rekap_final = material_breakdown.groupby(['Komponen', 'Satuan']).agg({
         'Total_Kebutuhan_Material': 'sum',
         'Total_Biaya_Material': 'sum'
@@ -116,7 +113,6 @@ def generate_excel_template(data_dict, sheet_name):
 def load_excel_prices(uploaded_file):
     try:
         df_new = pd.read_excel(uploaded_file)
-        # Wajib ada Kategori untuk fitur SNI
         required = ['Komponen', 'Harga_Dasar', 'Kategori'] 
         if not set(required).issubset(df_new.columns):
             st.error(f"Format Excel salah! Wajib ada kolom: {required}")
@@ -147,48 +143,30 @@ def load_excel_rab_volume(uploaded_file):
     except Exception as e:
         st.error(f"Gagal membaca file: {e}")
 
-# Fungsi Render HTML Tabel SNI
+# Fungsi Render HTML Tabel SNI (FIXED INDENTATION)
 def render_sni_html(kode, uraian, df_part, overhead_pct):
-    # Mapping Kategori app ke Standard SNI
-    cat_map = {
-        'Upah': 'TENAGA KERJA',
-        'Material': 'BAHAN',
-        'Alat': 'PERALATAN'
-    }
-    
-    # Kelompokkan Data
+    cat_map = {'Upah': 'TENAGA KERJA', 'Material': 'BAHAN', 'Alat': 'PERALATAN'}
     groups = {'Upah': [], 'Material': [], 'Alat': []}
     totals = {'Upah': 0, 'Material': 0, 'Alat': 0}
     
     for _, row in df_part.iterrows():
         cat = row['Kategori']
-        # Fallback jika kategori tidak standar
-        if cat not in groups:
-            cat = 'Material' 
-        
+        if cat not in groups: cat = 'Material'
         groups[cat].append(row)
         totals[cat] += row['Subtotal']
 
-    # HTML Construction
-    html = f"""
-    <div style="font-family: Arial, sans-serif; font-size: 14px; color: black;">
-    <div style="background-color: #d1d1d1; padding: 10px; border: 1px solid black; font-weight: bold;">
-        ANALISA HARGA SATUAN PEKERJAAN (AHSP) <br>
-        {kode} - {uraian}
-    </div>
+    # Gunakan string satu baris untuk menghindari indentasi otomatis Python yang merusak Markdown
+    html = f"""<div style="font-family: Arial, sans-serif; font-size: 14px; color: black;">
+    <div style="background-color: #d1d1d1; padding: 10px; border: 1px solid black; font-weight: bold;">ANALISA HARGA SATUAN PEKERJAAN (AHSP) <br>{kode} - {uraian}</div>
     <table style="width:100%; border-collapse: collapse; border: 1px solid black;">
-        <thead>
-            <tr style="background-color: #f0f0f0; text-align: center;">
-                <th style="border: 1px solid black; padding: 5px; width: 5%;">No</th>
-                <th style="border: 1px solid black; padding: 5px; width: 40%;">Uraian</th>
-                <th style="border: 1px solid black; padding: 5px; width: 10%;">Satuan</th>
-                <th style="border: 1px solid black; padding: 5px; width: 10%;">Koefisien</th>
-                <th style="border: 1px solid black; padding: 5px; width: 15%;">Harga Satuan (Rp)</th>
-                <th style="border: 1px solid black; padding: 5px; width: 20%;">Jumlah Harga (Rp)</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
+    <thead><tr style="background-color: #f0f0f0; text-align: center;">
+    <th style="border: 1px solid black; padding: 5px; width: 5%;">No</th>
+    <th style="border: 1px solid black; padding: 5px; width: 40%;">Uraian</th>
+    <th style="border: 1px solid black; padding: 5px; width: 10%;">Satuan</th>
+    <th style="border: 1px solid black; padding: 5px; width: 10%;">Koefisien</th>
+    <th style="border: 1px solid black; padding: 5px; width: 15%;">Harga Satuan (Rp)</th>
+    <th style="border: 1px solid black; padding: 5px; width: 20%;">Jumlah Harga (Rp)</th>
+    </tr></thead><tbody>"""
     
     sections = [('A', 'Upah'), ('B', 'Material'), ('C', 'Alat')]
     
@@ -196,63 +174,31 @@ def render_sni_html(kode, uraian, df_part, overhead_pct):
         items = groups[key]
         sni_label = cat_map[key]
         
-        # Header Section (A. TENAGA KERJA)
-        html += f"""
-        <tr style="font-weight: bold; background-color: #fafafa;">
-            <td style="border: 1px solid black; padding: 5px; text-align: center;">{label}</td>
-            <td colspan="5" style="border: 1px solid black; padding: 5px;">{sni_label}</td>
-        </tr>
-        """
+        html += f"""<tr style="font-weight: bold; background-color: #fafafa;"><td style="border: 1px solid black; padding: 5px; text-align: center;">{label}</td><td colspan="5" style="border: 1px solid black; padding: 5px;">{sni_label}</td></tr>"""
         
-        # Items
         if not items:
             html += f"""<tr><td colspan="6" style="border: 1px solid black; padding: 5px; text-align: center; color: #888;">- Tidak ada komponen -</td></tr>"""
         else:
             for idx, item in enumerate(items):
-                html += f"""
-                <tr>
-                    <td style="border: 1px solid black; padding: 5px; text-align: center;">{idx+1}</td>
-                    <td style="border: 1px solid black; padding: 5px;">{item['Komponen']}</td>
-                    <td style="border: 1px solid black; padding: 5px; text-align: center;">{item['Satuan']}</td>
-                    <td style="border: 1px solid black; padding: 5px; text-align: center;">{item['Koefisien']:.4f}</td>
-                    <td style="border: 1px solid black; padding: 5px; text-align: right;">{item['Harga_Dasar']:,.2f}</td>
-                    <td style="border: 1px solid black; padding: 5px; text-align: right;">{item['Subtotal']:,.2f}</td>
-                </tr>
-                """
+                html += f"""<tr>
+                <td style="border: 1px solid black; padding: 5px; text-align: center;">{idx+1}</td>
+                <td style="border: 1px solid black; padding: 5px;">{item['Komponen']}</td>
+                <td style="border: 1px solid black; padding: 5px; text-align: center;">{item['Satuan']}</td>
+                <td style="border: 1px solid black; padding: 5px; text-align: center;">{item['Koefisien']:.4f}</td>
+                <td style="border: 1px solid black; padding: 5px; text-align: right;">{item['Harga_Dasar']:,.2f}</td>
+                <td style="border: 1px solid black; padding: 5px; text-align: right;">{item['Subtotal']:,.2f}</td>
+                </tr>"""
         
-        # Subtotal Section
-        html += f"""
-        <tr style="font-weight: bold;">
-            <td colspan="5" style="border: 1px solid black; padding: 5px; text-align: right;">JUMLAH HARGA {sni_label}</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">{totals[key]:,.2f}</td>
-        </tr>
-        """
+        html += f"""<tr style="font-weight: bold;"><td colspan="5" style="border: 1px solid black; padding: 5px; text-align: right;">JUMLAH HARGA {sni_label}</td><td style="border: 1px solid black; padding: 5px; text-align: right;">{totals[key]:,.2f}</td></tr>"""
         
-    # Summary
     total_abc = totals['Upah'] + totals['Material'] + totals['Alat']
     overhead_val = total_abc * (overhead_pct / 100)
     final_price = total_abc + overhead_val
     
-    html += f"""
-        <tr style="background-color: #f9f9f9;">
-            <td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">D</td>
-            <td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">JUMLAH (A+B+C)</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{total_abc:,.2f}</td>
-        </tr>
-        <tr>
-            <td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">E</td>
-            <td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">Biaya Umum dan Keuntungan (Overhead) {overhead_pct}% x D</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{overhead_val:,.2f}</td>
-        </tr>
-        <tr style="background-color: #d1d1d1; font-size: 16px;">
-            <td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">F</td>
-            <td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">HARGA SATUAN PEKERJAAN (D+E)</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{final_price:,.2f}</td>
-        </tr>
-    </tbody>
-    </table>
-    </div>
-    """
+    html += f"""<tr style="background-color: #f9f9f9;"><td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">D</td><td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">JUMLAH (A+B+C)</td><td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{total_abc:,.2f}</td></tr>
+    <tr><td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">E</td><td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">Biaya Umum dan Keuntungan (Overhead) {overhead_pct}% x D</td><td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{overhead_val:,.2f}</td></tr>
+    <tr style="background-color: #d1d1d1; font-size: 16px;"><td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">F</td><td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">HARGA SATUAN PEKERJAAN (D+E)</td><td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{final_price:,.2f}</td></tr>
+    </tbody></table></div>"""
     return html
 
 # --- 4. Main UI ---
@@ -336,11 +282,9 @@ def main():
         col_sel, col_ov = st.columns([3, 1])
         
         with col_sel:
-            # Dropdown Pilih Pekerjaan
             df_det = st.session_state['df_analysis_detailed']
             unique_codes = df_det['Kode_Analisa'].unique()
             
-            # Buat Label Dropdown biar informatif (Kode - Nama)
             code_map = {}
             for c in unique_codes:
                 desc = df_det[df_det['Kode_Analisa'] == c]['Uraian_Pekerjaan'].iloc[0]
@@ -355,7 +299,6 @@ def main():
         with col_ov:
             overhead_pct = st.number_input("Overhead (%)", min_value=0.0, max_value=50.0, value=15.0, step=0.5)
 
-        # Filter Data
         df_selected = df_det[df_det['Kode_Analisa'] == selected_code]
         desc_selected = df_selected['Uraian_Pekerjaan'].iloc[0]
         
@@ -376,7 +319,7 @@ def main():
                     'Komponen': ['Semen Portland', 'Pekerja'],
                     'Harga_Dasar': [1300, 100000],
                     'Satuan': ['kg', 'OH'],
-                    'Kategori': ['Material', 'Upah'] # Penting buat SNI
+                    'Kategori': ['Material', 'Upah']
                 }
                 excel_price_template = generate_excel_template(template_price_data, "Template_Harga")
                 st.download_button(
