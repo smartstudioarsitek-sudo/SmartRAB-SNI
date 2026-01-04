@@ -33,7 +33,7 @@ def initialize_data():
         st.session_state['df_prices'] = pd.DataFrame(data_prices)
 
     if 'df_analysis' not in st.session_state:
-        # Data Analisa (AHSP SNI) - Database Resep
+        # Data Analisa (AHSP SNI)
         data_analysis = {
             'Kode_Analisa': ['A.2.2.1', 'A.2.2.1', 'A.2.2.1', 'A.2.2.1', 'A.2.2.1', 
                              'A.4.1.1', 'A.4.1.1', 'A.4.1.1', 'A.4.1.1', 'A.4.1.1'],
@@ -47,11 +47,18 @@ def initialize_data():
         st.session_state['df_analysis'] = pd.DataFrame(data_analysis)
 
     if 'df_rab' not in st.session_state:
-        # Data RAB (Awal Kosong)
+        # FIX: Inisialisasi dengan Tipe Data yang Jelas agar tidak Error
         data_rab = {
-            'No': [], 'Divisi': [], 'Uraian_Pekerjaan': [], 'Kode_Analisa_Ref': [],
-            'Satuan_Pek': [], 'Volume': [], 'Harga_Satuan_Jadi': [], 'Total_Harga': [],
-            'Durasi_Minggu': [], 'Minggu_Mulai': []
+            'No': pd.Series(dtype='int'),
+            'Divisi': pd.Series(dtype='str'),
+            'Uraian_Pekerjaan': pd.Series(dtype='str'),
+            'Kode_Analisa_Ref': pd.Series(dtype='str'),
+            'Satuan_Pek': pd.Series(dtype='str'),
+            'Volume': pd.Series(dtype='float'),
+            'Harga_Satuan_Jadi': pd.Series(dtype='float'),
+            'Total_Harga': pd.Series(dtype='float'),
+            'Durasi_Minggu': pd.Series(dtype='int'),
+            'Minggu_Mulai': pd.Series(dtype='int')
         }
         st.session_state['df_rab'] = pd.DataFrame(data_rab)
         
@@ -63,13 +70,13 @@ def calculate_system():
     df_a = st.session_state['df_analysis'].copy()
     df_r = st.session_state['df_rab'].copy()
     
+    # 1. HITUNG AHSP
     overhead_pct = st.session_state.get('global_overhead', 15.0)
     overhead_factor = 1 + (overhead_pct / 100)
 
     df_p['Key'] = df_p['Komponen'].str.strip().str.lower()
     df_a['Key'] = df_a['Komponen'].str.strip().str.lower()
 
-    # 1. Hitung Harga Satuan Dasar AHSP
     merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan', 'Kategori']], on='Key', how='left')
     merged_analysis['Harga_Dasar'] = merged_analysis['Harga_Dasar'].fillna(0)
     merged_analysis['Satuan'] = merged_analysis['Satuan'].fillna('-')
@@ -81,17 +88,22 @@ def calculate_system():
     unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
     unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_factor 
     
-    # 2. Update RAB (Hanya jika RAB tidak kosong)
+    # 2. UPDATE RAB
     if not df_r.empty:
-        # Link RAB dengan Harga Satuan Jadi berdasarkan KODE
+        # Pastikan kolom referensi string
+        df_r['Kode_Analisa_Ref'] = df_r['Kode_Analisa_Ref'].astype(str)
+        unit_prices_pure['Kode_Analisa'] = unit_prices_pure['Kode_Analisa'].astype(str)
+
         df_r_temp = pd.merge(df_r, unit_prices_pure[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
         
-        df_r['Harga_Satuan_Jadi'] = df_r_temp['Harga_Kalkulasi'].fillna(0)
+        # FIX: Pastikan hasil merge adalah angka (float)
+        df_r['Harga_Satuan_Jadi'] = pd.to_numeric(df_r_temp['Harga_Kalkulasi'], errors='coerce').fillna(0)
+        df_r['Volume'] = pd.to_numeric(df_r['Volume'], errors='coerce').fillna(0)
         df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
         
         st.session_state['df_rab'] = df_r
 
-        # 3. Hitung Rekap Material
+        # 3. REKAP MATERIAL
         material_breakdown = pd.merge(
             df_r[['Kode_Analisa_Ref', 'Volume']], 
             merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
@@ -114,26 +126,17 @@ def calculate_system():
 # --- 3. Parser & Smart Matcher ---
 
 def find_best_match(uraian_input, database_uraian_list, database_df):
-    """Mencari uraian pekerjaan yang paling mirip di database"""
     if not isinstance(uraian_input, str): return "", 0
-    
-    # Cari 1 match terbaik
-    matches = get_close_matches(uraian_input, database_uraian_list, n=1, cutoff=0.5) # Cutoff 0.5 = 50% kemiripan
-    
+    matches = get_close_matches(uraian_input, database_uraian_list, n=1, cutoff=0.5)
     if matches:
         match_text = matches[0]
-        # Ambil Kode dari DB
         row = database_df[database_df['Uraian_Pekerjaan'] == match_text].iloc[0]
         return row['Kode_Analisa'], match_text
     return "", ""
 
 def load_excel_custom_template(uploaded_file):
-    """Parser KHUSUS untuk Template Kakak (No, Uraian, Vol, Satuan, a, b)"""
     try:
-        # Baca Excel tanpa header dulu untuk inspeksi
         df_raw = pd.read_excel(uploaded_file, header=None)
-        
-        # Cari baris header (biasanya baris ke-2 atau ke-3 yang ada tulisan "URAIAN PEKERJAAN")
         header_row_idx = 0
         for i, row in df_raw.iterrows():
             row_str = row.astype(str).str.upper().tolist()
@@ -141,15 +144,9 @@ def load_excel_custom_template(uploaded_file):
                 header_row_idx = i
                 break
         
-        # Reload dengan header yang benar
         df = pd.read_excel(uploaded_file, header=header_row_idx)
-        
-        # Normalisasi nama kolom (karena kadang ada spasi 'URAIAN ', 'VOLUME ')
         df.columns = df.columns.str.strip().str.upper()
         
-        # Mapping kolom dari Excel Kakak ke Sistem
-        # Template Kakak: No (col 0/1), Uraian (col 2/3), Volume (col 4), Satuan (col 5)
-        # Kita cari kolom kunci
         col_uraian = next((c for c in df.columns if 'URAIAN' in c), None)
         col_vol = next((c for c in df.columns if 'VOLUME' in c), None)
         col_sat = next((c for c in df.columns if 'SATUAN' in c), None)
@@ -158,11 +155,8 @@ def load_excel_custom_template(uploaded_file):
             st.error("Gagal mendeteksi kolom URAIAN atau VOLUME. Pastikan format sesuai template.")
             return
 
-        # Proses Data
         clean_data = []
         current_divisi = "UMUM"
-        
-        # Siapkan Database untuk Smart Match
         db_ahsp = st.session_state['df_analysis_detailed'][['Kode_Analisa', 'Uraian_Pekerjaan']].drop_duplicates()
         db_uraian_list = db_ahsp['Uraian_Pekerjaan'].tolist()
 
@@ -173,58 +167,56 @@ def load_excel_custom_template(uploaded_file):
             vol = pd.to_numeric(row[col_vol], errors='coerce')
             sat = str(row[col_sat]).strip() if col_sat and str(row[col_sat]) != 'nan' else ''
             
-            # Deteksi Header/Divisi (Jika Volume Kosong/NaN, anggap sebagai Judul Bab)
             if pd.isna(vol) or vol == 0:
                 current_divisi = uraian
-                continue # Skip baris ini, jangan masuk RAB, simpan sbg nama Divisi
+                continue 
             
-            # Ini adalah Item Pekerjaan
-            # Lakukan SMART MATCHING
             detected_kode, matched_name = find_best_match(uraian, db_uraian_list, db_ahsp)
             
             clean_data.append({
                 'No': len(clean_data) + 1,
                 'Divisi': current_divisi,
                 'Uraian_Pekerjaan': uraian,
-                'Kode_Analisa_Ref': detected_kode, # Hasil Auto-Detect
+                'Kode_Analisa_Ref': detected_kode, 
                 'Satuan_Pek': sat,
                 'Volume': vol,
-                'Harga_Satuan_Jadi': 0,
-                'Total_Harga': 0,
+                'Harga_Satuan_Jadi': 0.0,
+                'Total_Harga': 0.0,
                 'Durasi_Minggu': 1,
                 'Minggu_Mulai': 1
             })
             
         if not clean_data:
-            st.warning("Tidak ada item pekerjaan dengan Volume > 0 yang ditemukan.")
+            st.warning("Tidak ada item pekerjaan dengan Volume > 0.")
             return
 
-        # Simpan ke State
-        st.session_state['df_rab'] = pd.DataFrame(clean_data)
-        calculate_system()
+        # FIX: Buat DataFrame Baru dan PAKSA tipe data numeric
+        df_new = pd.DataFrame(clean_data)
+        df_new['Volume'] = pd.to_numeric(df_new['Volume'], errors='coerce').fillna(0)
+        df_new['Harga_Satuan_Jadi'] = pd.to_numeric(df_new['Harga_Satuan_Jadi'], errors='coerce').fillna(0)
+        df_new['Total_Harga'] = pd.to_numeric(df_new['Total_Harga'], errors='coerce').fillna(0)
+        df_new['Durasi_Minggu'] = pd.to_numeric(df_new['Durasi_Minggu'], errors='coerce').fillna(1).astype(int)
+        df_new['Minggu_Mulai'] = pd.to_numeric(df_new['Minggu_Mulai'], errors='coerce').fillna(1).astype(int)
         
-        # Laporan Hasil Import
+        st.session_state['df_rab'] = df_new
+        calculate_system()
         match_count = sum(1 for x in clean_data if x['Kode_Analisa_Ref'] != "")
-        st.success(f"Berhasil import {len(clean_data)} item. {match_count} item otomatis terdeteksi harganya!")
+        st.success(f"Berhasil import {len(clean_data)} item. {match_count} item otomatis terdeteksi!")
         
     except Exception as e:
-        st.error(f"Terjadi kesalahan saat membaca file: {e}")
+        st.error(f"Gagal membaca file: {e}")
 
 # --- 4. Generate Template Excel User ---
 def generate_user_style_template():
-    """Membuat Template Excel persis seperti 'TEMPLETE VOLUME.xlsx'"""
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(output)
     worksheet = workbook.add_worksheet("Sheet1")
     
-    # Format
     fmt_header = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#D3D3D3', 'text_wrap': True})
     fmt_sub = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#EFEFEF'})
     fmt_normal = workbook.add_format({'border': 1})
-    fmt_input = workbook.add_format({'border': 1, 'bg_color': '#FFFFCC'}) # Kuning utk input
+    fmt_input = workbook.add_format({'border': 1, 'bg_color': '#FFFFCC'}) 
     
-    # Header Row (Baris 2 di Excel user, index 1)
-    # Kolom: A(kosong), B(No), C(kosong), D(URAIAN), E(VOLUME), F(SATUAN), G(a), H(b)
     worksheet.merge_range('B2:B3', 'No', fmt_header)
     worksheet.merge_range('D2:D3', 'URAIAN PEKERJAAN', fmt_header)
     worksheet.write('E2', 'VOLUME', fmt_header)
@@ -232,31 +224,30 @@ def generate_user_style_template():
     worksheet.write('E3', 'a', fmt_header)
     worksheet.write('F3', 'b', fmt_header)
     
-    # Contoh Data (Struktur User)
     data_sample = [
-        ('I', 'PEKERJAAN STRUKTUR BAWAH', None, None), # Header
-        ('1', 'Pondasi Batu Kali 1:4', 50, 'm3'),      # Item
-        ('2', 'Beton Mutu fc 25 Mpa', 25, 'm3'),       # Item
-        ('II', 'PEKERJAAN STRUKTUR ATAS', None, None), # Header
-        ('1', 'Beton Mutu fc 25 Mpa', 100, 'm3'),      # Item
+        ('I', 'PEKERJAAN STRUKTUR BAWAH', None, None), 
+        ('1', 'Pondasi Batu Kali 1:4', 50, 'm3'),      
+        ('2', 'Beton Mutu fc 25 Mpa', 25, 'm3'),       
+        ('II', 'PEKERJAAN STRUKTUR ATAS', None, None), 
+        ('1', 'Beton Mutu fc 25 Mpa', 100, 'm3'),      
     ]
     
     row = 3
     for no, uraian, vol, sat in data_sample:
-        if vol is None: # Header
+        if vol is None: 
             worksheet.write(row, 1, no, fmt_sub)
             worksheet.write(row, 3, uraian, fmt_sub)
-            worksheet.write_blank(row, 4, '', fmt_sub) # Vol kosong
-            worksheet.write_blank(row, 5, '', fmt_sub) # Sat kosong
-        else: # Item
-            worksheet.write(row, 1, '', fmt_normal) # Kolom No Induk kosong
-            worksheet.write(row, 2, no, fmt_normal) # Sub no
+            worksheet.write_blank(row, 4, '', fmt_sub) 
+            worksheet.write_blank(row, 5, '', fmt_sub) 
+        else: 
+            worksheet.write(row, 1, '', fmt_normal) 
+            worksheet.write(row, 2, no, fmt_normal) 
             worksheet.write(row, 3, uraian, fmt_normal)
             worksheet.write(row, 4, vol, fmt_input)
             worksheet.write(row, 5, sat, fmt_normal)
         row += 1
         
-    worksheet.set_column('D:D', 40) # Lebar kolom uraian
+    worksheet.set_column('D:D', 40) 
     workbook.close()
     return output.getvalue()
 
@@ -290,7 +281,6 @@ def render_footer():
     st.markdown("""<div style="text-align: right; color: red; font-size: 14px; font-weight: bold;">by SmartStudio, email smartstudioarsitek@gmail.com</div>""", unsafe_allow_html=True)
 
 def render_sni_html(kode, uraian, df_part, overhead_pct):
-    # (Kode HTML SNI sama seperti sebelumnya, disingkat)
     html = f"""<div style="font-family: Arial, sans-serif; font-size: 14px; color: black;"><div style="background-color: #d1d1d1; padding: 10px; border: 1px solid black; font-weight: bold;">ANALISA HARGA SATUAN (AHSP) <br>{kode} - {uraian}</div><table style="width:100%; border-collapse: collapse; border: 1px solid black;"><thead><tr style="background-color: #f0f0f0; text-align: center;"><th style="border: 1px solid black; padding: 5px;">No</th><th style="border: 1px solid black; padding: 5px;">Uraian</th><th style="border: 1px solid black; padding: 5px;">Sat</th><th style="border: 1px solid black; padding: 5px;">Koef</th><th style="border: 1px solid black; padding: 5px;">Harga</th><th style="border: 1px solid black; padding: 5px;">Jumlah</th></tr></thead><tbody>"""
     cat_map = {'Upah': 'TENAGA KERJA', 'Material': 'BAHAN', 'Alat': 'PERALATAN'}
     totals = {'Upah': 0, 'Material': 0, 'Alat': 0}
@@ -306,6 +296,92 @@ def render_sni_html(kode, uraian, df_part, overhead_pct):
     ov = total * (overhead_pct/100)
     html += f"""<tr style="background-color: #eee;"><td colspan="5" style="border: 1px solid black; text-align: right; font-weight: bold;">TOTAL (A+B+C)</td><td style="border: 1px solid black; text-align: right;">{total:,.0f}</td></tr><tr><td colspan="5" style="border: 1px solid black; text-align: right; font-weight: bold;">OVERHEAD {overhead_pct}%</td><td style="border: 1px solid black; text-align: right;">{ov:,.0f}</td></tr><tr style="background-color: #ccc; font-size: 16px;"><td colspan="5" style="border: 1px solid black; text-align: right; font-weight: bold;">HARGA SATUAN JADI</td><td style="border: 1px solid black; text-align: right; font-weight: bold;">{total+ov:,.0f}</td></tr></tbody></table></div>"""
     return html
+
+def generate_rekap_final_excel(df_rekap, ppn_pct, pt_name, signer, position):
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    workbook = writer.book
+    worksheet = workbook.add_worksheet('Rekapitulasi')
+    fmt_header = workbook.add_format({'bold': True, 'border': 1, 'align': 'center', 'bg_color': '#D3D3D3'})
+    fmt_currency = workbook.add_format({'num_format': '#,##0', 'border': 1})
+    fmt_text = workbook.add_format({'border': 1})
+    fmt_bold = workbook.add_format({'bold': True, 'border': 1})
+    
+    worksheet.write(0, 0, "PEKERJAAN", fmt_bold)
+    worksheet.write(0, 1, st.session_state['project_name'])
+    worksheet.write(1, 0, "LOKASI", fmt_bold)
+    worksheet.write(1, 1, st.session_state['project_loc'])
+    worksheet.write(2, 0, "TAHUN", fmt_bold)
+    worksheet.write(2, 1, st.session_state['project_year'])
+
+    worksheet.merge_range('A5:C5', 'REKAPITULASI BIAYA', workbook.add_format({'bold': True, 'align': 'center', 'font_size': 14}))
+    worksheet.merge_range('A6:C6', 'ENGINEERING ESTIMATE', workbook.add_format({'bold': True, 'align': 'center'}))
+    
+    worksheet.write(8, 0, 'No', fmt_header)
+    worksheet.write(8, 1, 'URAIAN PEKERJAAN', fmt_header)
+    worksheet.write(8, 2, 'TOTAL (Rp)', fmt_header)
+    
+    row = 9
+    total_biaya = 0
+    for idx, r in df_rekap.iterrows():
+        worksheet.write(row, 0, chr(65+idx), fmt_text) 
+        worksheet.write(row, 1, r['Divisi'], fmt_text)
+        worksheet.write(row, 2, r['Total_Harga'], fmt_currency)
+        total_biaya += r['Total_Harga']
+        row += 1
+        
+    ppn_val = total_biaya * (ppn_pct/100)
+    grand_total = total_biaya + ppn_val
+    
+    worksheet.write(row, 1, 'TOTAL BIAYA', fmt_bold)
+    worksheet.write(row, 2, total_biaya, fmt_currency)
+    row += 1
+    worksheet.write(row, 1, f'PPN {ppn_pct}%', fmt_bold)
+    worksheet.write(row, 2, ppn_val, fmt_currency)
+    row += 1
+    worksheet.write(row, 1, 'TOTAL', fmt_bold)
+    worksheet.write(row, 2, grand_total, fmt_currency)
+    
+    row += 3
+    worksheet.write(row, 2, pt_name, workbook.add_format({'bold': True, 'align': 'center'}))
+    row += 4
+    worksheet.write(row, 2, signer, workbook.add_format({'bold': True, 'align': 'center', 'underline': True}))
+    row += 1
+    worksheet.write(row, 2, position, workbook.add_format({'align': 'center'}))
+
+    worksheet.set_column(0, 0, 5)
+    worksheet.set_column(1, 1, 40)
+    worksheet.set_column(2, 2, 20)
+    writer.close()
+    return output.getvalue()
+
+def generate_s_curve_data():
+    df = st.session_state['df_rab'].copy()
+    if df.empty: return None, None
+    grand_total = df['Total_Harga'].sum()
+    if grand_total == 0: return None, None
+
+    df['Bobot_Pct'] = (df['Total_Harga'] / grand_total) * 100
+    df['Durasi_Minggu'] = df['Durasi_Minggu'].fillna(1).astype(int)
+    df['Minggu_Mulai'] = df['Minggu_Mulai'].fillna(1).astype(int)
+
+    max_week = int(df.apply(lambda x: x['Minggu_Mulai'] + x['Durasi_Minggu'] - 1, axis=1).max())
+    if pd.isna(max_week) or max_week < 1: max_week = 1
+    
+    cumulative_list = []
+    cumulative_progress = 0
+    for w in range(1, max_week + 2):
+        weekly_weight = 0
+        for _, row in df.iterrows():
+            start = row['Minggu_Mulai']
+            duration = row['Durasi_Minggu']
+            end = start + duration - 1
+            if start <= w <= end:
+                weekly_weight += (row['Bobot_Pct'] / duration)
+        cumulative_progress += weekly_weight
+        if cumulative_progress > 100: cumulative_progress = 100
+        cumulative_list.append({'Minggu': f"M{w}", 'Minggu_Int': w, 'Rencana_Kumulatif': cumulative_progress})
+    return df, pd.DataFrame(cumulative_list)
 
 # --- 6. Main UI ---
 def main():
@@ -348,6 +424,7 @@ def main():
                 total = rekap_view['Total_Harga'].sum()
                 ppn = total * 0.11
                 st.markdown(f"""<div style='text-align:right'><h3>TOTAL: Rp {total+ppn:,.0f}</h3>(Termasuk PPN 11%)</div>""", unsafe_allow_html=True)
+                st.download_button("📥 Download Laporan (Excel)", generate_rekap_final_excel(rekap_view, 11.0, st.session_state['project_name'], "WARTO SANTOSO", "LEADER"), "1_Rekap.xlsx")
             else:
                 st.info("Belum ada data RAB. Silakan import di Tab 2.")
         render_footer()
@@ -378,7 +455,7 @@ def main():
                 "Kode_Analisa_Ref": st.column_config.TextColumn(help="Auto-detected code"),
                 "Harga_Satuan_Jadi": st.column_config.NumberColumn(disabled=True, format="Rp %d"),
                 "Total_Harga": st.column_config.NumberColumn(disabled=True, format="Rp %d"),
-                "Volume": st.column_config.NumberColumn(format="%.2f")
+                "Volume": st.column_config.NumberColumn(format="%.2f", disabled=False)
             }
         )
         
