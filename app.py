@@ -3,7 +3,8 @@ import pandas as pd
 import io
 import xlsxwriter
 import altair as alt
-import difflib # Library untuk pencocokan teks (Fuzzy Logic)
+import difflib 
+import os 
 
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="SmartRAB-SNI Pro", layout="wide", page_icon="🏗️")
@@ -13,9 +14,9 @@ def initialize_session_state():
     defaults = {
         'global_overhead': 15.0,
         'project_name': 'Proyek Gedung Baru',
-        'temp_template_list': [], # Untuk menyimpan item sementara sebelum download template
-        'df_rab': pd.DataFrame(columns=['No', 'Uraian Pekerjaan', 'Volume', 'Satuan', 'Harga Satuan', 'Total Harga', 'Bobot']),
-        'df_master': None # Tempat menyimpan database harga
+        'temp_template_list': [], 
+        'df_rab': pd.DataFrame(columns=['No', 'Uraian Pekerjaan', 'Volume', 'Satuan', 'Harga Satuan', 'Total Harga', 'Lokasi']),
+        'df_master': None 
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -23,102 +24,100 @@ def initialize_session_state():
 
 initialize_session_state()
 
-# --- Fungsi Load Database Master (PENTING) ---
-@st.cache_data
-def load_master_database():
+# --- Fungsi Helper: Membersihkan Data Master ---
+def clean_master_data(df):
     try:
-        # Membaca CSV Master (Header ada di baris ke-6 atau index 5)
-        # Pastikan nama file sesuai dengan yang diupload
-        filename = "data_rab.xlsx - Daftar Harga Satuan Pekerjaan.csv"
-        df = pd.read_csv(filename, header=5)
+        # Hapus spasi di nama kolom
+        df.columns = df.columns.str.strip().str.upper()
         
-        # Ambil kolom penting saja dan bersihkan
-        df_clean = df[['NO', 'URAIAN PEKERJAAN', 'SATUAN', 'HARGA SATUAN']].dropna(subset=['URAIAN PEKERJAAN'])
+        # Cari kolom kunci (Fleksibel)
+        col_no = next((c for c in df.columns if 'NO' in c), None)
+        col_uraian = next((c for c in df.columns if 'URAIAN' in c), None)
+        col_satuan = next((c for c in df.columns if 'SATUAN' in c), None)
+        col_harga = next((c for c in df.columns if 'HARGA' in c), None)
+
+        if not all([col_no, col_uraian, col_satuan, col_harga]):
+            st.error(f"Format kolom tidak sesuai. Wajib ada: NO, URAIAN, SATUAN, HARGA. (Ditemukan: {df.columns.tolist()})")
+            return pd.DataFrame()
+
+        df_clean = df[[col_no, col_uraian, col_satuan, col_harga]].copy()
+        df_clean.columns = ['NO', 'URAIAN PEKERJAAN', 'SATUAN', 'HARGA SATUAN']
         
-        # Pastikan kolom harga numerik
+        # Bersihkan data kosong
+        df_clean = df_clean.dropna(subset=['URAIAN PEKERJAAN'])
+        # Pastikan harga berupa angka
         df_clean['HARGA SATUAN'] = pd.to_numeric(df_clean['HARGA SATUAN'], errors='coerce').fillna(0)
         df_clean['NO'] = df_clean['NO'].astype(str)
         
         return df_clean
     except Exception as e:
-        st.error(f"Gagal memuat Database Referensi: {e}")
-        return pd.DataFrame() # Return empty DF jika gagal
+        st.error(f"Gagal memproses data: {e}")
+        return pd.DataFrame()
 
-# Load data ke session state saat aplikasi mulai
+# --- Fungsi Load Database Master (Auto-Detect) ---
+def load_master_database_local():
+    # Daftar kemungkinan nama file (Prioritas sesuai file Kakak)
+    possible_names = [
+        "data_rab.xlsx - Daftar Harga Satuan Pekerjaan.csv",
+        "Daftar Harga Satuan Pekerjaan.csv",
+        "data_rab.csv"
+    ]
+    
+    for name in possible_names:
+        if os.path.exists(name):
+            try:
+                # Header ada di baris ke-6 (index 5)
+                df = pd.read_csv(name, header=5)
+                clean_df = clean_master_data(df)
+                if not clean_df.empty:
+                    st.toast(f"✅ Database otomatis dimuat: {name}")
+                    return clean_df
+            except Exception as e:
+                print(f"Gagal baca {name}: {e}")
+                continue
+    return None
+
+# Coba load otomatis saat aplikasi mulai
 if st.session_state['df_master'] is None:
-    st.session_state['df_master'] = load_master_database()
+    loaded_df = load_master_database_local()
+    if loaded_df is not None:
+        st.session_state['df_master'] = loaded_df
 
-# --- MODUL 1: Generator Template Excel Cerdas ---
+# --- MODUL 1: Generator Template Excel ---
 def generate_smart_volume_template(prefilled_data=None):
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
-    
-    # 1. Sheet Input Utama
     ws_input = workbook.add_worksheet('Input Volume')
-    # 2. Sheet Referensi (Disembunyikan)
     ws_ref = workbook.add_worksheet('Reference_DB') 
     
-    # Format Header Visual
-    header_fmt = workbook.add_format({
-        'bold': True, 'bg_color': '#4F81BD', 'font_color': 'white', 
-        'border': 1, 'align': 'center', 'valign': 'vcenter'
-    })
-    
-    # Kolom Template
-    headers = [
-        'KODE_ANALISA',       # A: Hidden ID
-        'URAIAN_PEKERJAAN',   # B: Input User/Dropdown
-        'LOKASI_ZONA',        # C: Lantai 1, dst
-        'PANJANG',            # D
-        'LEBAR',              # E
-        'TINGGI',             # F
-        'JUMLAH_UNIT',        # G
-        'SATUAN',             # H
-        'VOLUME_MANUAL',      # I: Override jika rumus tidak baku
-        'KETERANGAN'          # J
-    ]
-    
+    header_fmt = workbook.add_format({'bold': True, 'bg_color': '#4F81BD', 'font_color': 'white', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
+    headers = ['KODE_ANALISA', 'URAIAN_PEKERJAAN', 'LOKASI_ZONA', 'PANJANG', 'LEBAR', 'TINGGI', 'JUMLAH_UNIT', 'SATUAN', 'VOLUME_MANUAL', 'KETERANGAN']
     ws_input.write_row('A1', headers, header_fmt)
+    ws_input.set_column('B:B', 50) 
     
-    # Atur Lebar Kolom
-    ws_input.set_column('A:A', 15) # Kode
-    ws_input.set_column('B:B', 50) # Uraian (Lebar)
-    ws_input.set_column('C:C', 15) # Lokasi
-    ws_input.set_column('D:G', 10) # Dimensi
-    
-    # --- Isi Sheet Referensi untuk Dropdown ---
+    # Isi Data Referensi untuk Dropdown
     df_ref = st.session_state['df_master']
-    if not df_ref.empty:
+    if df_ref is not None and not df_ref.empty:
         ws_ref.write_row('A1', ['KODE', 'URAIAN', 'SATUAN'])
         for i, row in df_ref.iterrows():
             ws_ref.write(i+1, 0, str(row['NO']))
             ws_ref.write(i+1, 1, str(row['URAIAN PEKERJAAN']))
             ws_ref.write(i+1, 2, str(row['SATUAN']))
-        
-        # Sembunyikan sheet referensi agar rapi
         ws_ref.hide()
         
-        # Buat Data Validation (Dropdown) di Kolom Uraian (B)
+        # Validasi Data (Dropdown)
         data_len = len(df_ref)
-        ws_input.data_validation(f'B2:B{data_len+100}', {
-            'validate': 'list',
-            'source': f'=Reference_DB!$B$2:$B${data_len+1}'
-        })
-        
-        # Dropdown Satuan Standar
-        ws_input.data_validation('H2:H1000', {
-            'validate': 'list',
-            'source': ['m3', 'm2', 'm1', 'kg', 'bh', 'ls', 'unit', 'set', 'titik']
-        })
+        ws_input.data_validation(f'B2:B{data_len+100}', {'validate': 'list', 'source': f'=Reference_DB!$B$2:$B${data_len+1}'})
+        ws_input.data_validation('H2:H1000', {'validate': 'list', 'source': ['m3', 'm2', 'm1', 'kg', 'bh', 'ls', 'unit', 'set', 'titik']})
 
-    # --- Pre-filling Data (Jika user memilih dari Search UI) ---
+    # Isi Data Pre-filled (dari Pencarian)
     if prefilled_data:
         for idx, item in enumerate(prefilled_data):
             row = idx + 1
-            ws_input.write(row, 0, item['NO'])      # Kode Analisa (Hidden Key)
-            ws_input.write(row, 1, item['URAIAN'])  # Nama Pekerjaan
-            ws_input.write(row, 6, 1)               # Default Jumlah = 1
-            ws_input.write(row, 7, item['SATUAN'])  # Satuan
+            ws_input.write(row, 0, item['NO'])
+            ws_input.write(row, 1, item['URAIAN'])
+            ws_input.write(row, 6, 1)
+            ws_input.write(row, 7, item['SATUAN'])
             
     workbook.close()
     output.seek(0)
@@ -127,23 +126,17 @@ def generate_smart_volume_template(prefilled_data=None):
 # --- MODUL 2: Mesin Import Cerdas (Fuzzy Logic) ---
 def process_smart_import(uploaded_file):
     try:
-        # Baca Excel
         df_import = pd.read_excel(uploaded_file, sheet_name='Input Volume')
         master_db = st.session_state['df_master']
-        
         results = []
         
-        # Iterasi setiap baris input
         for index, row in df_import.iterrows():
-            # Skip baris kosong total
-            if pd.isna(row['URAIAN_PEKERJAAN']):
-                continue
-                
+            if pd.isna(row['URAIAN_PEKERJAAN']): continue
+            
             kode = str(row['KODE_ANALISA']) if pd.notnull(row['KODE_ANALISA']) else ''
             uraian_input = str(row['URAIAN_PEKERJAAN'])
             
-            # 1. Kalkulasi Volume Geometris
-            # Jika user mengisi 'VOLUME_MANUAL', pakai itu. Jika tidak, hitung PxLxTxJml
+            # Kalkulasi Volume
             vol_manual = row.get('VOLUME_MANUAL', 0)
             if pd.notnull(vol_manual) and vol_manual != 0:
                 volume_final = vol_manual
@@ -153,219 +146,177 @@ def process_smart_import(uploaded_file):
                 t = row.get('TINGGI', 0) if pd.notnull(row.get('TINGGI')) else 1
                 jml = row.get('JUMLAH_UNIT', 1) if pd.notnull(row.get('JUMLAH_UNIT')) else 1
                 
-                # Handle jika dimensi kosong (anggap 1 untuk perkalian, kecuali semua kosong)
-                if row.get('PANJANG') is None and row.get('LEBAR') is None:
-                    volume_final = jml # Asumsi input langsung jumlah
-                else:
+                # Cek jika semua dimensi kosong
+                if pd.isna(row.get('PANJANG')) and pd.isna(row.get('LEBAR')): 
+                    volume_final = jml 
+                else: 
                     volume_final = p * l * t * jml
 
-            # 2. Logika Pencocokan (Matching)
+            # Logika Pencocokan (Matching)
             match_row = pd.DataFrame()
             status_match = "Baru"
             
-            # A. Cek Deterministik (Berdasarkan Kode)
+            # 1. Cek Kode (Deterministik)
             if kode != '' and kode != 'nan':
                 match_row = master_db[master_db['NO'] == kode]
-                if not match_row.empty:
-                    status_match = "Terkunci (Kode)"
+                if not match_row.empty: status_match = "Terkunci (Kode)"
 
-            # B. Cek Fuzzy (Berdasarkan Kemiripan Nama) jika Kode gagal
+            # 2. Cek Nama (Fuzzy Logic)
             if match_row.empty:
-                # Cari kemiripan teks > 70%
                 matches = difflib.get_close_matches(uraian_input, master_db['URAIAN PEKERJAAN'].astype(str), n=1, cutoff=0.7)
-                
                 if matches:
-                    matched_uraian = matches[0]
-                    match_row = master_db[master_db['URAIAN PEKERJAAN'] == matched_uraian]
+                    match_row = master_db[master_db['URAIAN PEKERJAAN'] == matches[0]]
                     status_match = "Otomatis (Fuzzy)"
                 else:
                     status_match = "Manual (Tidak Ditemukan)"
             
-            # 3. Ambil Harga & Data Final
+            # Ambil Harga
             if not match_row.empty:
                 harga_satuan = match_row.iloc[0]['HARGA SATUAN']
                 satuan_resmi = match_row.iloc[0]['SATUAN']
                 uraian_resmi = match_row.iloc[0]['URAIAN PEKERJAAN']
                 kode_resmi = match_row.iloc[0]['NO']
             else:
-                # Jika tidak ketemu di DB, pakai input user
                 harga_satuan = 0
                 satuan_resmi = row['SATUAN']
                 uraian_resmi = uraian_input
                 kode_resmi = "MANUAL"
 
             results.append({
-                'No': kode_resmi,
-                'Uraian Pekerjaan': uraian_resmi,
+                'No': kode_resmi, 
+                'Uraian Pekerjaan': uraian_resmi, 
                 'Lokasi': row.get('LOKASI_ZONA', '-'),
-                'Volume': volume_final,
-                'Satuan': satuan_resmi,
+                'Volume': volume_final, 
+                'Satuan': satuan_resmi, 
                 'Harga Satuan': harga_satuan,
-                'Total Harga': volume_final * harga_satuan,
+                'Total Harga': volume_final * harga_satuan, 
                 'Metode Match': status_match
             })
-            
         return pd.DataFrame(results)
-        
     except Exception as e:
-        st.error(f"Terjadi kesalahan saat membaca file: {e}")
+        st.error(f"Error Import: {e}")
         return None
 
+# --- UI UTAMA ---
 def main():
     st.title("💰 SmartRAB - Estimasi Biaya Cerdas")
-    st.markdown("---")
-
-    # --- Sidebar: Profil Proyek ---
+    
+    # --- Sidebar ---
     with st.sidebar:
         st.header("📋 Data Proyek")
         st.session_state['project_name'] = st.text_input("Nama Proyek", st.session_state['project_name'])
-        st.session_state['global_overhead'] = st.number_input("Profit & Overhead (%)", value=15.0)
+        st.session_state['global_overhead'] = st.number_input("Profit (%)", value=15.0)
         
-        st.info("""
-        **Panduan Fitur Baru:**
-        1. Gunakan **Pencarian** di Tab RAB untuk memilih pekerjaan.
-        2. Download **Template Cerdas**.
-        3. Isi volume di Excel.
-        4. Upload kembali untuk **Hitung Otomatis**.
-        """)
+        st.markdown("---")
+        st.subheader("📂 Database Master")
+        
+        # STATUS DATABASE
+        if st.session_state['df_master'] is None:
+            st.error("❌ Database Belum Terbaca")
+            st.info("Sistem tidak menemukan file otomatis. Silakan upload manual di bawah ini:")
+            
+            # FITUR UPLOAD MANUAL (Solusi Error)
+            uploaded_master = st.file_uploader("Upload 'data_rab.xlsx - Daftar Harga Satuan Pekerjaan.csv'", type=['csv'])
+            if uploaded_master:
+                # Baca header baris ke-6 (index 5) sesuai file Kakak
+                df_uploaded = pd.read_csv(uploaded_master, header=5) 
+                df_clean = clean_master_data(df_uploaded)
+                if not df_clean.empty:
+                    st.session_state['df_master'] = df_clean
+                    st.success("Database berhasil dimuat manual!")
+                    st.rerun()
+        else:
+            st.success(f"✅ Database Aktif: {len(st.session_state['df_master'])} Item")
+            if st.button("🔄 Reset / Ganti Database"):
+                st.session_state['df_master'] = None
+                st.rerun()
 
-    # --- TAB NAVIGASI UTAMA ---
+    # --- BLOCKING: JIKA DB KOSONG, STOP DI SINI ---
+    if st.session_state['df_master'] is None:
+        st.warning("👈 Mohon Upload File Database Harga Satuan di Sidebar sebelah kiri untuk memulai.")
+        st.stop()
+
+    # --- TABS APLIKASI ---
     tabs = st.tabs(["📊 RAB & Import", "🔎 Database Harga", "📈 Rekapitulasi"])
 
-    # === TAB 1: RAB & FITUR PENCARIAN ===
+    # TAB 1: RAB & Import
     with tabs[0]:
         col_search, col_action = st.columns([2, 1])
-        
-        # --- A. Fitur Pencarian & Tambah ke Template ---
         with col_search:
-            st.subheader("1. Cari Item Pekerjaan (Pre-Planning)")
-            search_txt = st.text_input("Ketik nama pekerjaan (misal: 'Beton', 'Dinding', 'Kabel')", placeholder="Cari di database SNI...")
+            st.subheader("1. Cari & Pilih Pekerjaan")
+            st.caption("Cari pekerjaan dari database, lalu tambahkan ke list untuk dibuatkan Template Excel.")
+            search_txt = st.text_input("Kata Kunci (Contoh: Beton, Dinding, Cat)", placeholder="Ketik disini...")
             
             if search_txt:
                 df_master = st.session_state['df_master']
-                # Filter data
                 mask = df_master['URAIAN PEKERJAAN'].str.contains(search_txt, case=False, na=False)
-                df_results = df_master[mask].head(10) # Tampilkan 10 hasil teratas
-                
+                df_results = df_master[mask].head(10)
                 if not df_results.empty:
-                    # Tampilkan hasil pencarian
-                    st.dataframe(df_results[['NO', 'URAIAN PEKERJAAN', 'SATUAN', 'HARGA SATUAN']], hide_index=True, use_container_width=True)
+                    st.dataframe(df_results[['NO', 'URAIAN PEKERJAAN', 'HARGA SATUAN']], hide_index=True, use_container_width=True)
                     
-                    # Dropdown untuk memilih
-                    pilihan = st.selectbox("Pilih untuk ditambahkan ke Template:", df_results['URAIAN PEKERJAAN'])
-                    
-                    if st.button("➕ Tambahkan ke List Template"):
-                        # Ambil data lengkap item yang dipilih
-                        item_data = df_results[df_results['URAIAN PEKERJAAN'] == pilihan].iloc[0]
-                        st.session_state['temp_template_list'].append({
-                            'NO': item_data['NO'],
-                            'URAIAN': item_data['URAIAN PEKERJAAN'],
-                            'SATUAN': item_data['SATUAN']
-                        })
-                        st.success(f"Berhasil menambahkan: {pilihan}")
+                    pilihan = st.selectbox("Pilih Item:", df_results['URAIAN PEKERJAAN'])
+                    if st.button("➕ Tambah ke List Template"):
+                        item = df_results[df_results['URAIAN PEKERJAAN'] == pilihan].iloc[0]
+                        st.session_state['temp_template_list'].append({'NO': item['NO'], 'URAIAN': item['URAIAN PEKERJAAN'], 'SATUAN': item['SATUAN']})
+                        st.success(f"Berhasil ditambahkan: {pilihan}")
                 else:
-                    st.warning("Pekerjaan tidak ditemukan.")
+                    st.warning("Tidak ditemukan.")
 
-        # --- B. List Sementara & Download ---
         with col_action:
             st.subheader("2. Download Template")
-            jml_item = len(st.session_state['temp_template_list'])
-            st.metric("Item di Keranjang", f"{jml_item} Item")
-            
-            if st.checkbox("Lihat List Item"):
-                st.write(st.session_state['temp_template_list'])
+            st.info("List pekerjaan yang sudah dipilih:")
+            if st.session_state['temp_template_list']:
+                st.write(pd.DataFrame(st.session_state['temp_template_list'])[['URAIAN']])
                 if st.button("Hapus Semua List"):
-                    st.session_state['temp_template_list'] = []
-                    st.rerun()
-
-            # Tombol Generate Excel
+                     st.session_state['temp_template_list'] = []
+                     st.rerun()
+            else:
+                st.write("*Belum ada item dipilih*")
+            
             excel_data = generate_smart_volume_template(st.session_state['temp_template_list'])
-            st.download_button(
-                label="📥 Download Template Excel",
-                data=excel_data,
-                file_name="Template_Hitung_Volume.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary"
-            )
+            st.download_button("📥 Download Excel Template", excel_data, "Template_Volume_RAB.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
 
         st.markdown("---")
-        
-        # --- C. Upload & Proses ---
         st.subheader("3. Upload Template & Hitung RAB")
-        uploaded_file = st.file_uploader("Upload file Excel yang sudah diisi volumenya", type=['xlsx'])
-        
-        if uploaded_file:
-            with st.spinner("Sedang membaca file & mencocokkan database..."):
-                # Panggil Fungsi Modul 2
-                df_hasil = process_smart_import(uploaded_file)
-                
+        uploaded_rab = st.file_uploader("Upload Excel Template yang sudah diisi Volume-nya", type=['xlsx'])
+        if uploaded_rab:
+            with st.spinner("Sedang menghitung..."):
+                df_hasil = process_smart_import(uploaded_rab)
                 if df_hasil is not None:
-                    # Update Session State RAB
                     st.session_state['df_rab'] = df_hasil
-                    
-                    # Tampilkan Hasil
                     st.success("Perhitungan Selesai!")
+                    st.dataframe(df_hasil.style.format({"Harga Satuan": "{:,.0f}", "Total Harga": "{:,.0f}", "Volume": "{:.2f}"}), use_container_width=True)
                     
-                    # Ringkasan Match
-                    n_auto = len(df_hasil[df_hasil['Metode Match'] == 'Otomatis (Fuzzy)'])
-                    n_code = len(df_hasil[df_hasil['Metode Match'] == 'Terkunci (Kode)'])
-                    n_manual = len(df_hasil[df_hasil['Metode Match'] == 'Manual (Tidak Ditemukan)'])
-                    
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Match Kode (Akurat)", n_code)
-                    c2.metric("Match Fuzzy (Cerdas)", n_auto)
-                    c3.metric("Manual/Tidak Ketemu", n_manual)
-                    
-                    # Tampilan Tabel Utama
-                    st.dataframe(
-                        df_hasil.style.format({"Harga Satuan": "Rp {:,.0f}", "Total Harga": "Rp {:,.0f}", "Volume": "{:.2f}"}),
-                        use_container_width=True
-                    )
-                    
-                    # Hitung Grand Total
-                    grand_total = df_hasil['Total Harga'].sum()
-                    st.markdown(f"### Total Biaya Konstruksi: **Rp {grand_total:,.0f}**")
+                    total_rab = df_hasil['Total Harga'].sum()
+                    st.markdown(f"### Total Estimasi Fisik: Rp {total_rab:,.0f}")
 
-    # === TAB 2: DATABASE ===
+    # TAB 2: Database
     with tabs[1]:
-        st.header("Database Harga Satuan (DHSP)")
-        if st.session_state['df_master'] is not None:
-            st.dataframe(st.session_state['df_master'], use_container_width=True)
-        else:
-            st.error("Database belum dimuat. Pastikan file CSV tersedia.")
+        st.dataframe(st.session_state['df_master'], use_container_width=True)
 
-    # === TAB 3: REKAPITULASI ===
+    # TAB 3: Rekap
     with tabs[2]:
-        st.header("Rekapitulasi Biaya")
         df_rab = st.session_state['df_rab']
-        
         if not df_rab.empty:
-            # Grouping by Lokasi/Lantai
-            rekap_lokasi = df_rab.groupby('Lokasi')['Total Harga'].sum().reset_index()
+            st.header("Rekapitulasi Akhir")
+            total_real = df_rab['Total Harga'].sum()
+            overhead = total_real * (st.session_state['global_overhead']/100)
+            grand_total = total_real + overhead
             
-            col_chart, col_df = st.columns(2)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Biaya Real", f"Rp {total_real:,.0f}")
+            c2.metric(f"Profit ({st.session_state['global_overhead']}%)", f"Rp {overhead:,.0f}")
+            c3.metric("HARGA PENAWARAN", f"Rp {grand_total:,.0f}", delta="Final")
             
-            with col_chart:
-                chart = alt.Chart(rekap_lokasi).mark_arc(innerRadius=50).encode(
+            # Pie Chart Per Lokasi
+            if 'Lokasi' in df_rab.columns:
+                chart_data = df_rab.groupby('Lokasi')['Total Harga'].sum().reset_index()
+                chart = alt.Chart(chart_data).mark_arc().encode(
                     theta='Total Harga',
                     color='Lokasi',
                     tooltip=['Lokasi', 'Total Harga']
-                ).properties(title="Proporsi Biaya per Zona")
+                )
                 st.altair_chart(chart, use_container_width=True)
-            
-            with col_df:
-                st.dataframe(rekap_lokasi.style.format({"Total Harga": "Rp {:,.0f}"}), use_container_width=True)
-                
-                # Biaya + Overhead
-                real_cost = df_rab['Total Harga'].sum()
-                overhead_val = real_cost * (st.session_state['global_overhead'] / 100)
-                final_total = real_cost + overhead_val
-                
-                st.write("---")
-                st.write(f"Biaya Real: Rp {real_cost:,.0f}")
-                st.write(f"Jasa & Overhead ({st.session_state['global_overhead']}%): Rp {overhead_val:,.0f}")
-                st.markdown(f"### HARGA PENAWARAN: Rp {final_total:,.0f}")
 
-# Menjalankan Aplikasi
 if __name__ == "__main__":
     main()
