@@ -6,7 +6,7 @@ import altair as alt
 import streamlit.components.v1 as components
 
 # --- Konfigurasi Halaman ---
-st.set_page_config(page_title="Sistem RAB Pro SNI", layout="wide")
+st.set_page_config(page_title="SmartRAB-SNI", layout="wide")
 
 # --- 1. Inisialisasi Data ---
 def initialize_data():
@@ -396,7 +396,7 @@ def main():
     initialize_data()
     render_print_style() # Inject CSS Print
     
-    st.title("🏗️ Sistem Integrated RAB & Material Control")
+    st.title("🏗️ SmartRAB-SNI") # <--- NAMA APLIKASI DIUBAH DISINI
     
     tabs = st.tabs([
         "📊 1. REKAPITULASI", 
@@ -497,7 +497,7 @@ def main():
             use_container_width=True,
             column_config={
                 "No": st.column_config.NumberColumn(disabled=True),
-                "Divisi": st.column_config.TextColumn(disabled=True),
+                "Divisi": st.column_config.TextColumn(disabled=True, help="Ubah lewat Import Excel jika ingin ganti struktur"),
                 "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True),
                 "Kode_Analisa_Ref": st.column_config.TextColumn(disabled=True),
                 "Harga_Satuan_Jadi": st.column_config.NumberColumn("Harga (+Ovhd)", format="Rp %d", disabled=True),
