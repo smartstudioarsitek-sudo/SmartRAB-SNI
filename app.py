@@ -9,7 +9,7 @@ from difflib import get_close_matches
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="SmartRAB-SNI", layout="wide")
 
-# --- 1. Inisialisasi Data ---
+# --- 1. Inisialisasi Data (Database Lengkap) ---
 def initialize_data():
     defaults = {
         'global_overhead': 15.0,
@@ -21,32 +21,187 @@ def initialize_data():
         if key not in st.session_state:
             st.session_state[key] = val
 
+    # === DATABASE HARGA SATUAN DASAR (RESOURCE) ===
     if 'df_prices' not in st.session_state:
-        # Data Harga Dasar (Termasuk Upah)
         data_prices = {
-            'Kode': ['M.01', 'M.02', 'M.03', 'L.01', 'L.02', 'L.03', 'L.04', 'L.05', 'E.01'],
-            'Komponen': ['Semen Portland', 'Pasir Beton', 'Batu Kali', 'Pekerja', 'Tukang Batu', 'Kepala Tukang', 'Mandor', 'Tukang Las', 'Sewa Molen'],
-            'Satuan': ['kg', 'kg', 'm3', 'OH', 'OH', 'OH', 'OH', 'OH', 'Jam'],
-            'Harga_Dasar': [1300, 300, 286500, 100000, 145000, 175000, 200000, 145000, 85000],
-            'Kategori': ['Material', 'Material', 'Material', 'Upah', 'Upah', 'Upah', 'Upah', 'Upah', 'Alat']
+            'Kode': [
+                # UPAH
+                'L.01', 'L.02', 'L.03', 'L.04', 'L.05', 'L.06',
+                # MATERIAL - SIPIL & STRUKTUR
+                'M.01', 'M.02', 'M.03', 'M.04', 'M.05', 'M.06', 'M.07', 'M.08', 'M.09', 'M.10',
+                # MATERIAL - ARSITEKTUR
+                'M.11', 'M.12', 'M.13', 'M.14', 'M.15', 'M.16', 'M.17', 'M.18', 'M.19',
+                # MATERIAL - MEP (LISTRIK & SANITAIR)
+                'M.20', 'M.21', 'M.22', 'M.23', 'M.24', 'M.25', 'M.26', 'M.27', 'M.28',
+                # ALAT
+                'E.01', 'E.02'
+            ],
+            'Komponen': [
+                # UPAH
+                'Pekerja', 'Tukang Batu', 'Tukang Kayu', 'Tukang Cat', 'Tukang Listrik', 'Kepala Tukang',
+                # MATERIAL - SIPIL
+                'Semen Portland', 'Pasir Beton', 'Pasir Pasang', 'Batu Kali', 'Split (Kerikil)', 
+                'Batu Bata Merah', 'Bata Ringan (Hebel)', 'Semen Instan (Mortar)', 'Besi Beton Polos', 'Kawat Beton',
+                # MATERIAL - ARS
+                'Keramik 40x40', 'Granit 60x60', 'Semen Nat', 'Cat Tembok Interior', 'Cat Tembok Eksterior', 
+                'Papan Gypsum 9mm', 'Rangka Hollow 40x40', 'Kusen Aluminium 4"', 'Kaca Polos 5mm',
+                # MATERIAL - MEP
+                'Pipa PVC 1/2"', 'Pipa PVC 3"', 'Kran Air 1/2"', 'Closet Duduk', 'Floor Drain',
+                'Kabel NYM 3x2.5mm', 'Saklar Tunggal', 'Saklar Ganda', 'Stop Kontak',
+                # ALAT
+                'Sewa Molen', 'Stamper'
+            ],
+            'Satuan': [
+                # UPAH
+                'OH', 'OH', 'OH', 'OH', 'OH', 'OH',
+                # SIPIL
+                'kg', 'kg', 'm3', 'm3', 'kg', 
+                'bh', 'bh', 'zak', 'kg', 'kg',
+                # ARS
+                'dos', 'dos', 'kg', 'kg', 'kg', 
+                'lbr', 'btg', 'm1', 'm2',
+                # MEP
+                'btg', 'btg', 'bh', 'unit', 'bh',
+                'm', 'bh', 'bh', 'bh',
+                # ALAT
+                'jam', 'jam'
+            ],
+            'Harga_Dasar': [
+                # UPAH
+                100000, 145000, 150000, 140000, 160000, 180000,
+                # SIPIL
+                1300, 300, 320000, 280000, 260000, 
+                800, 8500, 65000, 14000, 25000,
+                # ARS
+                65000, 180000, 15000, 35000, 55000, 
+                85000, 45000, 120000, 150000,
+                # MEP
+                45000, 120000, 35000, 2500000, 45000,
+                15000, 35000, 45000, 40000,
+                # ALAT
+                85000, 150000
+            ],
+            'Kategori': [
+                'Upah', 'Upah', 'Upah', 'Upah', 'Upah', 'Upah',
+                'Material', 'Material', 'Material', 'Material', 'Material',
+                'Material', 'Material', 'Material', 'Material', 'Material',
+                'Material', 'Material', 'Material', 'Material', 'Material',
+                'Material', 'Material', 'Material', 'Material',
+                'Material', 'Material', 'Material', 'Material', 'Material',
+                'Material', 'Material', 'Material', 'Material',
+                'Alat', 'Alat'
+            ]
         }
         st.session_state['df_prices'] = pd.DataFrame(data_prices)
 
+    # === DATABASE ANALISA HARGA SATUAN (AHSP / RESEP) ===
     if 'df_analysis' not in st.session_state:
         data_analysis = {
-            'Kode_Analisa': ['A.2.2.1', 'A.2.2.1', 'A.2.2.1', 'A.2.2.1', 'A.2.2.1', 
-                             'A.4.1.1', 'A.4.1.1', 'A.4.1.1', 'A.4.1.1', 'A.4.1.1'],
-            'Uraian_Pekerjaan': ['Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4',
-                                 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa'],
-            'Komponen': ['Batu Kali', 'Semen Portland', 'Pasir Beton', 'Pekerja', 'Tukang Batu',
-                         'Semen Portland', 'Pasir Beton', 'Split (Asumsi)', 'Pekerja', 'Sewa Molen'],
-            'Koefisien': [1.2, 163.0, 0.52, 1.5, 0.75,
-                          350.0, 700.0, 1050.0, 2.0, 0.25]
+            'Kode_Analisa': [],
+            'Uraian_Pekerjaan': [],
+            'Komponen': [],
+            'Koefisien': []
         }
+        
+        # Helper function untuk mengisi data lebih rapi
+        def add_analisa(kode, uraian, komponen_list):
+            for komp, koef in komponen_list:
+                data_analysis['Kode_Analisa'].append(kode)
+                data_analysis['Uraian_Pekerjaan'].append(uraian)
+                data_analysis['Komponen'].append(komp)
+                data_analysis['Koefisien'].append(koef)
+
+        # --- 1. PEKERJAAN PERSIAPAN & TANAH ---
+        add_analisa('A.2.3.1', 'Galian Tanah Biasa sedalam 1 m', [('Pekerja', 0.75), ('Mandor', 0.025)])
+        add_analisa('A.2.3.9', 'Urugan Pasir Bawah Pondasi', [('Pasir Pasang', 1.2), ('Pekerja', 0.3)])
+        add_analisa('A.2.3.11', 'Urugan Tanah Kembali', [('Pekerja', 0.5)])
+
+        # --- 2. PEKERJAAN PONDASI ---
+        add_analisa('A.3.2.3', 'Pasangan Pondasi Batu Kali 1:4', [
+            ('Batu Kali', 1.2), ('Semen Portland', 163.0), ('Pasir Pasang', 0.52), 
+            ('Pekerja', 1.5), ('Tukang Batu', 0.75), ('Kepala Tukang', 0.075)
+        ])
+        
+        # --- 3. PEKERJAAN BETON ---
+        # Beton K-175 (Cor Lantai Kerja / Praktis)
+        add_analisa('A.4.1.1.5', 'Membuat Beton Mutu fc 14.5 Mpa (K-175)', [
+            ('Semen Portland', 326.0), ('Pasir Beton', 760.0), ('Split (Kerikil)', 1029.0),
+            ('Pekerja', 1.65), ('Tukang Batu', 0.275), ('Sewa Molen', 0.25)
+        ])
+        # Beton K-250 (Struktural)
+        add_analisa('A.4.1.1.7', 'Membuat Beton Mutu fc 21.7 Mpa (K-250)', [
+            ('Semen Portland', 384.0), ('Pasir Beton', 692.0), ('Split (Kerikil)', 1039.0),
+            ('Pekerja', 1.65), ('Tukang Batu', 0.275), ('Sewa Molen', 0.25)
+        ])
+        # Pembesian
+        add_analisa('A.4.1.1.17', 'Pembesian 10kg dengan Besi Polos', [
+            ('Besi Beton Polos', 10.5), ('Kawat Beton', 0.15), 
+            ('Pekerja', 0.07), ('Tukang Batu', 0.07)
+        ])
+
+        # --- 4. PEKERJAAN DINDING ---
+        add_analisa('A.4.4.1', 'Pasangan Dinding Bata Merah 1:4', [
+            ('Batu Bata Merah', 70.0), ('Semen Portland', 11.5), ('Pasir Pasang', 0.043),
+            ('Pekerja', 0.3), ('Tukang Batu', 0.1)
+        ])
+        add_analisa('A.4.4.3', 'Pasangan Dinding Hebel / Ringan', [
+            ('Bata Ringan (Hebel)', 8.5), ('Semen Instan (Mortar)', 4.0),
+            ('Pekerja', 0.2), ('Tukang Batu', 0.1)
+        ])
+        add_analisa('A.4.4.2', 'Plesteran 1:4 Tebal 15mm', [
+            ('Semen Portland', 6.24), ('Pasir Pasang', 0.024),
+            ('Pekerja', 0.3), ('Tukang Batu', 0.15)
+        ])
+
+        # --- 5. PEKERJAAN LANTAI & DINDING ---
+        add_analisa('A.4.4.3.35', 'Pasang Lantai Keramik 40x40', [
+            ('Keramik 40x40', 1.05), ('Semen Portland', 10.0), ('Pasir Pasang', 0.045), ('Semen Nat', 1.5),
+            ('Pekerja', 0.7), ('Tukang Batu', 0.35)
+        ])
+        add_analisa('A.4.4.3.36', 'Pasang Lantai Granit 60x60', [
+            ('Granit 60x60', 1.05), ('Semen Portland', 9.8), ('Pasir Pasang', 0.045), ('Semen Nat', 1.3),
+            ('Pekerja', 0.7), ('Tukang Batu', 0.35)
+        ])
+
+        # --- 6. PEKERJAAN PLAFOND ---
+        add_analisa('A.4.5.1', 'Rangka Plafond Hollow', [
+            ('Rangka Hollow 40x40', 4.0), ('Pekerja', 0.25), ('Tukang Kayu', 0.25)
+        ])
+        add_analisa('A.4.5.2', 'Pasang Plafond Gypsum 9mm', [
+            ('Papan Gypsum 9mm', 0.364), ('Pekerja', 0.1), ('Tukang Kayu', 0.05)
+        ])
+
+        # --- 7. PEKERJAAN PENGECATAN ---
+        add_analisa('A.4.7.1', 'Pengecatan Tembok Baru (Interior)', [
+            ('Cat Tembok Interior', 0.2), ('Pekerja', 0.02), ('Tukang Cat', 0.063)
+        ])
+
+        # --- 8. PEKERJAAN ELEKTRIKAL (ME) ---
+        add_analisa('E.1.1', 'Instalasi Titik Lampu', [
+            ('Kabel NYM 3x2.5mm', 5.0), ('Pipa PVC 1/2"', 1.0),
+            ('Pekerja', 0.5), ('Tukang Listrik', 0.5)
+        ])
+        add_analisa('E.1.2', 'Pasang Stop Kontak', [
+            ('Stop Kontak', 1.0), ('Pekerja', 0.1), ('Tukang Listrik', 0.2)
+        ])
+        add_analisa('E.1.3', 'Pasang Saklar Tunggal', [
+            ('Saklar Tunggal', 1.0), ('Pekerja', 0.05), ('Tukang Listrik', 0.1)
+        ])
+
+        # --- 9. PEKERJAAN SANITAIR ---
+        add_analisa('S.1.1', 'Pasang Closet Duduk', [
+            ('Closet Duduk', 1.0), ('Pekerja', 1.5), ('Tukang Batu', 1.5)
+        ])
+        add_analisa('S.1.2', 'Pasang Floor Drain', [
+            ('Floor Drain', 1.0), ('Pekerja', 0.1), ('Tukang Batu', 0.1)
+        ])
+        add_analisa('S.1.3', 'Pasang Kran Air 1/2"', [
+            ('Kran Air 1/2"', 1.0), ('Pekerja', 0.05), ('Tukang Batu', 0.1)
+        ])
+
         st.session_state['df_analysis'] = pd.DataFrame(data_analysis)
 
     if 'df_rab' not in st.session_state:
-        # FIX: Inisialisasi dengan Tipe Data Eksplisit (Numeric) agar tidak Error
         data_rab = {
             'No': pd.Series(dtype='int'),
             'Divisi': pd.Series(dtype='str'),
@@ -60,6 +215,8 @@ def initialize_data():
             'Minggu_Mulai': pd.Series(dtype='int')
         }
         st.session_state['df_rab'] = pd.DataFrame(data_rab)
+        
+    calculate_system()
         
     calculate_system()
 
@@ -511,4 +668,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
