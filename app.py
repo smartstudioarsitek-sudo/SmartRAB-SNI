@@ -95,7 +95,7 @@ def calculate_system():
     material_breakdown['Total_Kebutuhan_Material'] = material_breakdown['Volume'] * material_breakdown['Koefisien']
     material_breakdown['Total_Biaya_Material'] = material_breakdown['Total_Kebutuhan_Material'] * material_breakdown['Harga_Dasar']
     
-    # --- BAGIAN YANG TADI ERROR SUDAH DIPERBAIKI ---
+    # --- BAGIAN YANG DIPERBAIKI (Quote 'sum' ditutup dengan benar) ---
     rekap_final = material_breakdown.groupby(['Komponen', 'Satuan']).agg({
         'Total_Kebutuhan_Material': 'sum',
         'Total_Biaya_Material': 'sum'
