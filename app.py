@@ -10,7 +10,6 @@ st.set_page_config(page_title="Sistem RAB Pro SNI", layout="wide")
 
 # --- 1. Inisialisasi Data ---
 def initialize_data():
-    # Inisialisasi Variable Global
     defaults = {
         'global_overhead': 15.0,
         'project_name': '-',
@@ -126,8 +125,8 @@ def generate_s_curve_data():
     max_week = int(df.apply(lambda x: x['Minggu_Mulai'] + x['Durasi_Minggu'] - 1, axis=1).max())
     if pd.isna(max_week) or max_week < 1: max_week = 1
     
-    cumulative_progress = 0
     cumulative_list = []
+    cumulative_progress = 0
     
     for w in range(1, max_week + 2):
         weekly_weight = 0
@@ -149,12 +148,67 @@ def generate_s_curve_data():
 
     return df, pd.DataFrame(cumulative_list)
 
-# --- 4. Helper UI Components ---
+# --- 4. Helper UI Components & Printing ---
+
+def render_print_style():
+    """Inject CSS khusus untuk mode cetak agar rapi"""
+    st.markdown("""
+        <style>
+            @media print {
+                /* Sembunyikan elemen bawaan Streamlit yang mengganggu saat print */
+                [data-testid="stHeader"], 
+                [data-testid="stSidebar"], 
+                [data-testid="stToolbar"], 
+                footer, 
+                .stDeployButton {
+                    display: none !important;
+                }
+                
+                /* Atur konten utama agar full width dan bersih */
+                .main .block-container {
+                    max-width: 100% !important;
+                    padding: 1rem !important;
+                    box-shadow: none !important;
+                }
+                
+                /* Paksa background putih dan text hitam */
+                body {
+                    background-color: white !important;
+                    color: black !important;
+                }
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+def render_print_button():
+    """Tombol Print yang memanggil window.parent.print()"""
+    components.html(
+        """
+        <script>
+            function cetak() {
+                window.parent.print();
+            }
+        </script>
+        <div style="text-align: right;">
+            <button onclick="cetak()" style="
+                background-color: #f0f2f6; 
+                border: 1px solid #ccc; 
+                padding: 8px 16px; 
+                border-radius: 4px; 
+                cursor: pointer; 
+                font-weight: bold;
+                color: #333;
+                font-family: sans-serif;">
+                🖨️ Cetak Halaman / Print
+            </button>
+        </div>
+        """,
+        height=60
+    )
 
 def render_project_identity():
-    """Menampilkan Header Identitas Proyek di Tab 1 dan Tab 2"""
     st.markdown(f"""
-    <div style="margin-bottom: 20px;">
+    <div style="margin-bottom: 20px; font-family: sans-serif;">
         <table style="width:100%; border:none;">
             <tr><td style="font-weight:bold; width:150px;">PEKERJAAN</td><td>: {st.session_state['project_name']}</td></tr>
             <tr><td style="font-weight:bold;">LOKASI</td><td>: {st.session_state['project_loc']}</td></tr>
@@ -163,28 +217,7 @@ def render_project_identity():
     </div>
     """, unsafe_allow_html=True)
 
-def render_print_button():
-    """Tombol Print menggunakan JavaScript"""
-    # Menggunakan HTML Component agar tidak reload page
-    components.html(
-        """<div style="text-align: right;">
-            <button onclick="window.print()" style="
-                background-color: #f0f2f6; 
-                border: 1px solid #ccc; 
-                padding: 8px 16px; 
-                border-radius: 4px; 
-                cursor: pointer; 
-                font-weight: bold;
-                color: #333;">
-                🖨️ Cetak Halaman / Print
-            </button>
-           </div>
-        """, 
-        height=50
-    )
-
 def render_footer():
-    """Footer Kustom Warna Merah Rata Kanan"""
     st.markdown("---")
     st.markdown("""
     <div style="text-align: right; color: red; font-size: 14px; font-weight: bold;">
@@ -218,7 +251,6 @@ def generate_rekap_final_excel(df_rekap, ppn_pct, pt_name, signer, position):
     fmt_text = workbook.add_format({'border': 1})
     fmt_bold = workbook.add_format({'bold': True, 'border': 1})
     
-    # Identitas Proyek di Excel
     worksheet.write(0, 0, "PEKERJAAN", fmt_bold)
     worksheet.write(0, 1, st.session_state['project_name'])
     worksheet.write(1, 0, "LOKASI", fmt_bold)
@@ -362,6 +394,7 @@ def render_sni_html(kode, uraian, df_part, overhead_pct):
 # --- 5. Main UI ---
 def main():
     initialize_data()
+    render_print_style() # Inject CSS Print
     
     st.title("🏗️ Sistem Integrated RAB & Material Control")
     
@@ -392,7 +425,6 @@ def main():
             p_loc = st.text_input("Lokasi", value=st.session_state['project_loc'])
             p_year = st.text_input("Tahun Anggaran", value=st.session_state['project_year'])
             
-            # Simpan Perubahan Identitas
             if p_name != st.session_state['project_name'] or p_loc != st.session_state['project_loc']:
                 st.session_state['project_name'] = p_name
                 st.session_state['project_loc'] = p_loc
@@ -400,13 +432,11 @@ def main():
                 st.rerun()
 
             st.write("---")
-            # --- PROFIT EDITABLE ---
             new_overhead = st.number_input(
                 "Margin Profit / Overhead (%)", 
                 min_value=0.0, max_value=50.0, 
                 value=st.session_state['global_overhead'], 
-                step=0.5,
-                help="Mengubah ini akan mengupdate harga di seluruh TAB RAB & AHSP."
+                step=0.5
             )
             if new_overhead != st.session_state['global_overhead']:
                 st.session_state['global_overhead'] = new_overhead
@@ -418,7 +448,6 @@ def main():
             signer_input = st.text_input("Penandatangan", value="WARTO SANTOSO, ST")
             pos_input = st.text_input("Jabatan", value="LEADER")
         
-        # Display Rekap
         df_rab = st.session_state['df_rab']
         if 'Divisi' in df_rab.columns:
             rekap_divisi = df_rab.groupby('Divisi')['Total_Harga'].sum().reset_index()
@@ -430,7 +459,6 @@ def main():
         grand_total_val = total_biaya + ppn_val
         
         with col_main:
-            # TAMPILKAN HEADER IDENTITAS
             render_project_identity()
             
             st.markdown("### Tabel Rekapitulasi")
@@ -460,20 +488,16 @@ def main():
     with tabs[1]:
         st.header("Rencana Anggaran Biaya")
         
-        # TOMBOL PRINT
         render_print_button()
-        
-        # HEADER IDENTITAS
         render_project_identity()
 
-        # TABLE EDITOR
         edited_rab = st.data_editor(
             st.session_state['df_rab'],
             num_rows="dynamic",
             use_container_width=True,
             column_config={
                 "No": st.column_config.NumberColumn(disabled=True),
-                "Divisi": st.column_config.TextColumn(disabled=True, help="Ubah lewat Import Excel jika ingin ganti struktur"),
+                "Divisi": st.column_config.TextColumn(disabled=True),
                 "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True),
                 "Kode_Analisa_Ref": st.column_config.TextColumn(disabled=True),
                 "Harga_Satuan_Jadi": st.column_config.NumberColumn("Harga (+Ovhd)", format="Rp %d", disabled=True),
