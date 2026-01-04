@@ -3,15 +3,23 @@ import pandas as pd
 import io
 import xlsxwriter
 import altair as alt
+import streamlit.components.v1 as components
 
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="Sistem RAB Pro SNI", layout="wide")
 
 # --- 1. Inisialisasi Data ---
 def initialize_data():
-    # Inisialisasi Overhead Global (Default 15%)
-    if 'global_overhead' not in st.session_state:
-        st.session_state['global_overhead'] = 15.0 
+    # Inisialisasi Variable Global
+    defaults = {
+        'global_overhead': 15.0,
+        'project_name': '-',
+        'project_loc': '-',
+        'project_year': '2025'
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
 
     if 'df_prices' not in st.session_state:
         data_prices = {
@@ -51,7 +59,6 @@ def initialize_data():
         }
         st.session_state['df_rab'] = pd.DataFrame(data_rab)
     
-    # Update struktur tabel lama jika perlu
     if 'Durasi_Minggu' not in st.session_state['df_rab'].columns:
         st.session_state['df_rab']['Durasi_Minggu'] = 1
         st.session_state['df_rab']['Minggu_Mulai'] = 1
@@ -64,15 +71,13 @@ def calculate_system():
     df_a = st.session_state['df_analysis'].copy()
     df_r = st.session_state['df_rab'].copy()
     
-    # Ambil Overhead Global
     overhead_pct = st.session_state.get('global_overhead', 15.0)
     overhead_factor = 1 + (overhead_pct / 100)
 
-    # Normalisasi Key
     df_p['Key'] = df_p['Komponen'].str.strip().str.lower()
     df_a['Key'] = df_a['Komponen'].str.strip().str.lower()
 
-    # 1. Hitung Harga Satuan per Analisa
+    # 1. Hitung Harga Satuan
     merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan', 'Kategori']], on='Key', how='left')
     merged_analysis['Harga_Dasar'] = merged_analysis['Harga_Dasar'].fillna(0)
     merged_analysis['Satuan'] = merged_analysis['Satuan'].fillna('-')
@@ -81,7 +86,6 @@ def calculate_system():
     
     st.session_state['df_analysis_detailed'] = merged_analysis 
 
-    # Agregat Harga Satuan Jadi + Profit
     unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
     unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_factor 
     
@@ -91,7 +95,7 @@ def calculate_system():
     df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
     st.session_state['df_rab'] = df_r
 
-    # 3. Hitung Rekap Material (Real Cost)
+    # 3. Hitung Rekap Material
     material_breakdown = pd.merge(
         df_r[['Kode_Analisa_Ref', 'Volume']], 
         merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
@@ -145,11 +149,45 @@ def generate_s_curve_data():
 
     return df, pd.DataFrame(cumulative_list)
 
-# --- 4. Helper & Exports ---
+# --- 4. Helper UI Components ---
+
+def render_project_identity():
+    """Menampilkan Header Identitas Proyek di Tab 1 dan Tab 2"""
+    st.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <table style="width:100%; border:none;">
+            <tr><td style="font-weight:bold; width:150px;">PEKERJAAN</td><td>: {st.session_state['project_name']}</td></tr>
+            <tr><td style="font-weight:bold;">LOKASI</td><td>: {st.session_state['project_loc']}</td></tr>
+            <tr><td style="font-weight:bold;">TAHUN</td><td>: {st.session_state['project_year']}</td></tr>
+        </table>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_print_button():
+    """Tombol Print menggunakan JavaScript"""
+    # Menggunakan HTML Component agar tidak reload page
+    components.html(
+        """<div style="text-align: right;">
+            <button onclick="window.print()" style="
+                background-color: #f0f2f6; 
+                border: 1px solid #ccc; 
+                padding: 8px 16px; 
+                border-radius: 4px; 
+                cursor: pointer; 
+                font-weight: bold;
+                color: #333;">
+                🖨️ Cetak Halaman / Print
+            </button>
+           </div>
+        """, 
+        height=50
+    )
+
 def render_footer():
+    """Footer Kustom Warna Merah Rata Kanan"""
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: grey; font-size: 12px;">
+    <div style="text-align: right; color: red; font-size: 14px; font-weight: bold;">
         by SmartStudio, email smartstudioarsitek@gmail.com
     </div>
     """, unsafe_allow_html=True)
@@ -180,14 +218,22 @@ def generate_rekap_final_excel(df_rekap, ppn_pct, pt_name, signer, position):
     fmt_text = workbook.add_format({'border': 1})
     fmt_bold = workbook.add_format({'bold': True, 'border': 1})
     
-    worksheet.merge_range('A1:C1', 'REKAPITULASI BIAYA', workbook.add_format({'bold': True, 'align': 'center', 'font_size': 14}))
-    worksheet.merge_range('A2:C2', 'ENGINEERING ESTIMATE', workbook.add_format({'bold': True, 'align': 'center'}))
+    # Identitas Proyek di Excel
+    worksheet.write(0, 0, "PEKERJAAN", fmt_bold)
+    worksheet.write(0, 1, st.session_state['project_name'])
+    worksheet.write(1, 0, "LOKASI", fmt_bold)
+    worksheet.write(1, 1, st.session_state['project_loc'])
+    worksheet.write(2, 0, "TAHUN", fmt_bold)
+    worksheet.write(2, 1, st.session_state['project_year'])
+
+    worksheet.merge_range('A5:C5', 'REKAPITULASI BIAYA', workbook.add_format({'bold': True, 'align': 'center', 'font_size': 14}))
+    worksheet.merge_range('A6:C6', 'ENGINEERING ESTIMATE', workbook.add_format({'bold': True, 'align': 'center'}))
     
-    worksheet.write(4, 0, 'No', fmt_header)
-    worksheet.write(4, 1, 'URAIAN PEKERJAAN', fmt_header)
-    worksheet.write(4, 2, 'TOTAL (Rp)', fmt_header)
+    worksheet.write(8, 0, 'No', fmt_header)
+    worksheet.write(8, 1, 'URAIAN PEKERJAAN', fmt_header)
+    worksheet.write(8, 2, 'TOTAL (Rp)', fmt_header)
     
-    row = 5
+    row = 9
     total_biaya = 0
     for idx, r in df_rekap.iterrows():
         worksheet.write(row, 0, chr(65+idx), fmt_text) 
@@ -248,8 +294,8 @@ def load_excel_rab_volume(uploaded_file):
         df_clean['Satuan_Pek'] = 'ls/m3/m2' 
         df_clean['Harga_Satuan_Jadi'] = 0
         df_clean['Total_Harga'] = 0
-        df_clean['Durasi_Minggu'] = 1 # Default
-        df_clean['Minggu_Mulai'] = 1 # Default
+        df_clean['Durasi_Minggu'] = 1 
+        df_clean['Minggu_Mulai'] = 1 
         
         st.session_state['df_rab'] = df_clean
         calculate_system()
@@ -331,11 +377,29 @@ def main():
     # === TAB 1: REKAPITULASI ===
     with tabs[0]:
         st.header("Rekapitulasi Biaya (Engineering Estimate)")
+        
+        # TOMBOL PRINT
+        render_print_button()
+        
         col_main, col_set = st.columns([2, 1])
         
         with col_set:
-            st.markdown("### ⚙️ Pengaturan Global")
+            st.markdown("### ⚙️ Pengaturan & Identitas")
             
+            # --- INPUT IDENTITAS PROYEK ---
+            st.markdown("**Identitas Proyek**")
+            p_name = st.text_input("Nama Pekerjaan", value=st.session_state['project_name'])
+            p_loc = st.text_input("Lokasi", value=st.session_state['project_loc'])
+            p_year = st.text_input("Tahun Anggaran", value=st.session_state['project_year'])
+            
+            # Simpan Perubahan Identitas
+            if p_name != st.session_state['project_name'] or p_loc != st.session_state['project_loc']:
+                st.session_state['project_name'] = p_name
+                st.session_state['project_loc'] = p_loc
+                st.session_state['project_year'] = p_year
+                st.rerun()
+
+            st.write("---")
             # --- PROFIT EDITABLE ---
             new_overhead = st.number_input(
                 "Margin Profit / Overhead (%)", 
@@ -344,13 +408,11 @@ def main():
                 step=0.5,
                 help="Mengubah ini akan mengupdate harga di seluruh TAB RAB & AHSP."
             )
-            # Update state otomatis
             if new_overhead != st.session_state['global_overhead']:
                 st.session_state['global_overhead'] = new_overhead
                 calculate_system()
                 st.rerun()
 
-            st.write("---")
             ppn_input = st.number_input("PPN (%)", value=11.0, step=1.0)
             pt_input = st.text_input("Nama Perusahaan", value="SMARTSTUDIIO")
             signer_input = st.text_input("Penandatangan", value="WARTO SANTOSO, ST")
@@ -368,6 +430,9 @@ def main():
         grand_total_val = total_biaya + ppn_val
         
         with col_main:
+            # TAMPILKAN HEADER IDENTITAS
+            render_project_identity()
+            
             st.markdown("### Tabel Rekapitulasi")
             st.dataframe(
                 rekap_divisi, 
@@ -395,22 +460,24 @@ def main():
     with tabs[1]:
         st.header("Rencana Anggaran Biaya")
         
-        # FITUR UTAMA: KUNCI KOLOM (LOCK)
+        # TOMBOL PRINT
+        render_print_button()
+        
+        # HEADER IDENTITAS
+        render_project_identity()
+
+        # TABLE EDITOR
         edited_rab = st.data_editor(
             st.session_state['df_rab'],
             num_rows="dynamic",
             use_container_width=True,
             column_config={
                 "No": st.column_config.NumberColumn(disabled=True),
-                
-                # KOLOM DIKUNCI (READ ONLY)
                 "Divisi": st.column_config.TextColumn(disabled=True, help="Ubah lewat Import Excel jika ingin ganti struktur"),
                 "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True),
                 "Kode_Analisa_Ref": st.column_config.TextColumn(disabled=True),
                 "Harga_Satuan_Jadi": st.column_config.NumberColumn("Harga (+Ovhd)", format="Rp %d", disabled=True),
                 "Total_Harga": st.column_config.NumberColumn("Total", format="Rp %d", disabled=True),
-                
-                # KOLOM BISA DIEDIT (VOLUME & JADWAL)
                 "Volume": st.column_config.NumberColumn("Volume (Input)", disabled=False),
                 "Durasi_Minggu": st.column_config.NumberColumn("Durasi (Mgg)", min_value=1, disabled=False),
                 "Minggu_Mulai": st.column_config.NumberColumn("Start (Mgg)", min_value=1, disabled=False)
@@ -449,6 +516,8 @@ def main():
     # === TAB 3, 4, 5 (Standard) ===
     with tabs[2]:
         st.header("Detail Analisa (AHSP)")
+        render_print_button()
+        
         col_sel, col_ov = st.columns([3, 1])
         with col_sel:
             df_det = st.session_state['df_analysis_detailed']
@@ -456,7 +525,6 @@ def main():
             code_map = {c: f"{c} - {df_det[df_det['Kode_Analisa'] == c]['Uraian_Pekerjaan'].iloc[0]}" for c in unique_codes}
             selected_code = st.selectbox("Pilih Pekerjaan:", unique_codes, format_func=lambda x: code_map[x])
         with col_ov:
-            # Display Only (Karena kontrol utama sekarang di Tab 1)
             st.metric("Overhead Global", f"{st.session_state['global_overhead']}%")
 
         df_selected = df_det[df_det['Kode_Analisa'] == selected_code]
@@ -467,6 +535,8 @@ def main():
 
     with tabs[3]:
         st.header("Master Harga Satuan")
+        render_print_button()
+        
         edited_prices = st.data_editor(st.session_state['df_prices'], num_rows="dynamic", use_container_width=True, 
                                        column_config={"Harga_Dasar": st.column_config.NumberColumn(format="Rp %d"), "Kategori": st.column_config.SelectboxColumn(options=['Upah', 'Material', 'Alat'], required=True)})
         if not edited_prices.equals(st.session_state['df_prices']):
@@ -483,6 +553,8 @@ def main():
 
     with tabs[4]:
         st.header("Rekap Material (Real Cost)")
+        render_print_button()
+        
         if 'df_material_rekap' in st.session_state:
             st.dataframe(st.session_state['df_material_rekap'], use_container_width=True, hide_index=True, 
                          column_config={"Total_Biaya_Material": st.column_config.NumberColumn(format="Rp %d"), "Total_Kebutuhan_Material": st.column_config.NumberColumn(format="%.2f")})
@@ -501,11 +573,11 @@ def main():
     # === TAB 6: KURVA S ===
     with tabs[5]:
         st.header("📈 Kurva S - Jadwal Proyek")
+        render_print_button()
         
         df_rab_curve, df_curve_data = generate_s_curve_data()
         
         if df_curve_data is not None:
-            # Chart
             chart = alt.Chart(df_curve_data).mark_line(point=True, strokeWidth=3).encode(
                 x=alt.X('Minggu_Int', title='Minggu Ke-', scale=alt.Scale(domainMin=1)),
                 y=alt.Y('Rencana_Kumulatif', title='Bobot Kumulatif (%)', scale=alt.Scale(domain=[0, 100])),
