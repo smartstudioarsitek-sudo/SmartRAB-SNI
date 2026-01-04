@@ -396,7 +396,9 @@ def main():
     initialize_data()
     render_print_style() # Inject CSS Print
     
-    st.title("🏗️ SmartRAB-SNI") # <--- NAMA APLIKASI DIUBAH DISINI
+    st.title("🏗️ SmartRAB-SNI")
+    # MENAMBAHKAN SUB-JUDUL KECIL DI SINI
+    st.caption("Sistem Integrated RAB & Material Control")
     
     tabs = st.tabs([
         "📊 1. REKAPITULASI", 
