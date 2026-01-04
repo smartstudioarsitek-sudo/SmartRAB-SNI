@@ -60,8 +60,13 @@ def calculate_system():
     df_a['Key'] = df_a['Komponen'].str.strip().str.lower()
 
     # 1. Hitung Harga Satuan per Analisa
-    merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar']], on='Key', how='left')
+    # FIX: Menambahkan kolom 'Satuan' agar ikut terbawa saat merge
+    merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan']], on='Key', how='left')
+    
     merged_analysis['Harga_Dasar'] = merged_analysis['Harga_Dasar'].fillna(0)
+    # Isi Satuan yang kosong (misal item baru) dengan '-' agar tidak error
+    merged_analysis['Satuan'] = merged_analysis['Satuan'].fillna('-')
+    
     merged_analysis['Subtotal'] = merged_analysis['Koefisien'] * merged_analysis['Harga_Dasar']
     
     # Simpan detail kalkulasi analisa ke session untuk ditampilkan di Tab AHSP
@@ -79,14 +84,14 @@ def calculate_system():
 
     # 3. Hitung Rekap Material (Volume Proyek x Koefisien)
     # Merge RAB (Volume) dengan Analisa (Koefisien)
-    # Kita perlu tahu: Untuk 50m3 Pondasi, butuh berapa sak semen?
     material_breakdown = pd.merge(
         df_r[['Kode_Analisa_Ref', 'Volume']], 
-        merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], # Gunakan merged_analysis yg punya satuan
+        merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
         left_on='Kode_Analisa_Ref', 
         right_on='Kode_Analisa', 
         how='left'
     )
+    
     # Rumus: Volume Proyek * Koefisien
     material_breakdown['Total_Kebutuhan_Material'] = material_breakdown['Volume'] * material_breakdown['Koefisien']
     material_breakdown['Total_Biaya_Material'] = material_breakdown['Total_Kebutuhan_Material'] * material_breakdown['Harga_Dasar']
@@ -110,8 +115,7 @@ def load_excel_prices(uploaded_file):
             st.error(f"Format Excel salah! Wajib ada kolom: {required}")
             return
         
-        # Update harga (Logic: Update jika ada, Append jika baru, atau Replace All tergantung kebutuhan)
-        # Disini kita pakai Replace All agar sinkron
+        # Update harga
         st.session_state['df_prices'] = df_new
         calculate_system()
         st.success("Harga berhasil diupdate!")
@@ -129,7 +133,7 @@ def load_excel_rab_volume(uploaded_file):
         # Kita ambil kolom penting saja dan reset kolom hitungan
         df_clean = df_new[required].copy()
         df_clean['No'] = range(1, len(df_clean) + 1)
-        df_clean['Satuan_Pek'] = 'ls/m3/m2' # Placeholder, idealnya dari input juga
+        df_clean['Satuan_Pek'] = 'ls/m3/m2' 
         df_clean['Harga_Satuan_Jadi'] = 0
         df_clean['Total_Harga'] = 0
         
@@ -166,7 +170,12 @@ def main():
         with col2:
             st.info("Ringkasan ini otomatis terhitung dari Tab RAB.")
             
-        # Bisa ditambah pie chart atau tabel rekap per pekerjaan besar disini
+        if 'df_material_rekap' in st.session_state:
+             st.write("---")
+             st.subheader("Porsi Biaya Terbesar (Top 5 Material)")
+             # Chart sederhana
+             top_mat = st.session_state['df_material_rekap'].sort_values('Total_Biaya_Material', ascending=False).head(5)
+             st.bar_chart(top_mat, x="Komponen", y="Total_Biaya_Material")
 
     # === TAB 2: RAB (Input Volume & Excel) ===
     with tabs[1]:
@@ -207,7 +216,7 @@ def main():
         
         # Tampilkan DataFrame detail yang sudah ada harga & total per barisnya
         view_ahsp = st.session_state['df_analysis_detailed'][
-            ['Kode_Analisa', 'Uraian_Pekerjaan', 'Komponen', 'Koefisien', 'Harga_Dasar', 'Subtotal']
+            ['Kode_Analisa', 'Uraian_Pekerjaan', 'Komponen', 'Koefisien', 'Satuan', 'Harga_Dasar', 'Subtotal']
         ]
         
         st.dataframe(
