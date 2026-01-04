@@ -5,11 +5,11 @@ import xlsxwriter
 import altair as alt
 
 # --- Konfigurasi Halaman ---
-st.set_page_config(page_title="Sistem RAB Pro SNI + Kurva S", layout="wide")
+st.set_page_config(page_title="Sistem RAB Pro SNI", layout="wide")
 
 # --- 1. Inisialisasi Data ---
 def initialize_data():
-    # Inisialisasi Overhead Global
+    # Inisialisasi Overhead Global (Default 15%)
     if 'global_overhead' not in st.session_state:
         st.session_state['global_overhead'] = 15.0 
 
@@ -37,7 +37,6 @@ def initialize_data():
         st.session_state['df_analysis'] = pd.DataFrame(data_analysis)
 
     if 'df_rab' not in st.session_state:
-        # UPDATE: Tambah Kolom Durasi & Minggu Mulai untuk Kurva S
         data_rab = {
             'No': [1, 2],
             'Divisi': ['PEKERJAAN STRUKTUR BAWAH', 'PEKERJAAN STRUKTUR ATAS'], 
@@ -47,12 +46,12 @@ def initialize_data():
             'Volume': [50.0, 25.0],
             'Harga_Satuan_Jadi': [0.0, 0.0],
             'Total_Harga': [0.0, 0.0],
-            'Durasi_Minggu': [2, 4],     # Default Durasi
-            'Minggu_Mulai': [1, 3]       # Default Start
+            'Durasi_Minggu': [2, 4],
+            'Minggu_Mulai': [1, 3]
         }
         st.session_state['df_rab'] = pd.DataFrame(data_rab)
     
-    # Migrasi data lama jika kolom kurva S belum ada (untuk user existing)
+    # Update struktur tabel lama jika perlu
     if 'Durasi_Minggu' not in st.session_state['df_rab'].columns:
         st.session_state['df_rab']['Durasi_Minggu'] = 1
         st.session_state['df_rab']['Minggu_Mulai'] = 1
@@ -65,13 +64,15 @@ def calculate_system():
     df_a = st.session_state['df_analysis'].copy()
     df_r = st.session_state['df_rab'].copy()
     
+    # Ambil Overhead Global
     overhead_pct = st.session_state.get('global_overhead', 15.0)
     overhead_factor = 1 + (overhead_pct / 100)
 
+    # Normalisasi Key
     df_p['Key'] = df_p['Komponen'].str.strip().str.lower()
     df_a['Key'] = df_a['Komponen'].str.strip().str.lower()
 
-    # 1. Hitung Harga Satuan
+    # 1. Hitung Harga Satuan per Analisa
     merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan', 'Kategori']], on='Key', how='left')
     merged_analysis['Harga_Dasar'] = merged_analysis['Harga_Dasar'].fillna(0)
     merged_analysis['Satuan'] = merged_analysis['Satuan'].fillna('-')
@@ -80,6 +81,7 @@ def calculate_system():
     
     st.session_state['df_analysis_detailed'] = merged_analysis 
 
+    # Agregat Harga Satuan Jadi + Profit
     unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
     unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_factor 
     
@@ -89,7 +91,7 @@ def calculate_system():
     df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
     st.session_state['df_rab'] = df_r
 
-    # 3. Hitung Rekap Material
+    # 3. Hitung Rekap Material (Real Cost)
     material_breakdown = pd.merge(
         df_r[['Kode_Analisa_Ref', 'Volume']], 
         merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
@@ -115,46 +117,33 @@ def generate_s_curve_data():
     if grand_total == 0:
         return None, None
 
-    # Hitung Bobot %
     df['Bobot_Pct'] = (df['Total_Harga'] / grand_total) * 100
     
-    # Tentukan Max Minggu
     max_week = int(df.apply(lambda x: x['Minggu_Mulai'] + x['Durasi_Minggu'] - 1, axis=1).max())
     if pd.isna(max_week) or max_week < 1: max_week = 1
-    
-    # Buat DataFrame Jadwal (Minggu 1, Minggu 2, ...)
-    weeks = [f"Minggu {i}" for i in range(1, max_week + 2)] # +1 Buffer
-    schedule_data = []
     
     cumulative_progress = 0
     cumulative_list = []
     
-    # Iterasi per Minggu
     for w in range(1, max_week + 2):
         weekly_weight = 0
         for _, row in df.iterrows():
             start = row['Minggu_Mulai']
             duration = row['Durasi_Minggu']
             end = start + duration - 1
-            
-            # Jika minggu ini masuk dalam durasi pekerjaan
             if start <= w <= end:
-                # Distribusi linier: Bobot dibagi rata durasi
                 weekly_weight += (row['Bobot_Pct'] / duration)
         
         cumulative_progress += weekly_weight
-        # Cap di 100% (kadang floating point error bikin 100.00001)
         if cumulative_progress > 100: cumulative_progress = 100
         
         cumulative_list.append({
             'Minggu': f"M{w}",
             'Minggu_Int': w,
-            'Rencana_Kumulatif': cumulative_progress,
-            'Rencana_Parsial': weekly_weight
+            'Rencana_Kumulatif': cumulative_progress
         })
 
-    df_curve = pd.DataFrame(cumulative_list)
-    return df, df_curve
+    return df, pd.DataFrame(cumulative_list)
 
 # --- 4. Helper & Exports ---
 def render_footer():
@@ -168,6 +157,14 @@ def render_footer():
 def to_excel_download(df, sheet_name="Sheet1"):
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    df.to_excel(writer, index=False, sheet_name=sheet_name)
+    writer.close()
+    return output.getvalue()
+
+def generate_excel_template(data_dict, sheet_name):
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    df = pd.DataFrame(data_dict)
     df.to_excel(writer, index=False, sheet_name=sheet_name)
     writer.close()
     return output.getvalue()
@@ -224,6 +221,41 @@ def generate_rekap_final_excel(df_rekap, ppn_pct, pt_name, signer, position):
     
     writer.close()
     return output.getvalue()
+
+def load_excel_prices(uploaded_file):
+    try:
+        df_new = pd.read_excel(uploaded_file)
+        required = ['Komponen', 'Harga_Dasar', 'Kategori'] 
+        if not set(required).issubset(df_new.columns):
+            st.error(f"Format Excel salah! Wajib ada kolom: {required}")
+            return
+        st.session_state['df_prices'] = df_new
+        calculate_system()
+        st.success("Harga berhasil diupdate!")
+    except Exception as e:
+        st.error(f"Gagal membaca file: {e}")
+
+def load_excel_rab_volume(uploaded_file):
+    try:
+        df_new = pd.read_excel(uploaded_file)
+        required = ['Divisi', 'Uraian_Pekerjaan', 'Kode_Analisa_Ref', 'Volume']
+        if not set(required).issubset(df_new.columns):
+            st.error(f"Format Excel salah! Wajib ada kolom: {required}")
+            return
+        
+        df_clean = df_new[required].copy()
+        df_clean['No'] = range(1, len(df_clean) + 1)
+        df_clean['Satuan_Pek'] = 'ls/m3/m2' 
+        df_clean['Harga_Satuan_Jadi'] = 0
+        df_clean['Total_Harga'] = 0
+        df_clean['Durasi_Minggu'] = 1 # Default
+        df_clean['Minggu_Mulai'] = 1 # Default
+        
+        st.session_state['df_rab'] = df_clean
+        calculate_system()
+        st.success("Volume RAB berhasil diimport!")
+    except Exception as e:
+        st.error(f"Gagal membaca file: {e}")
 
 def render_sni_html(kode, uraian, df_part, overhead_pct):
     cat_map = {'Upah': 'TENAGA KERJA', 'Material': 'BAHAN', 'Alat': 'PERALATAN'}
@@ -302,24 +334,29 @@ def main():
         col_main, col_set = st.columns([2, 1])
         
         with col_set:
-            st.markdown("### Pengaturan Laporan")
+            st.markdown("### ⚙️ Pengaturan Global")
+            
+            # --- PROFIT EDITABLE ---
             new_overhead = st.number_input(
                 "Margin Profit / Overhead (%)", 
                 min_value=0.0, max_value=50.0, 
                 value=st.session_state['global_overhead'], 
-                step=1.0,
-                help="Set 0% jika ingin Real Cost (Swakelola). Default 15%."
+                step=0.5,
+                help="Mengubah ini akan mengupdate harga di seluruh TAB RAB & AHSP."
             )
+            # Update state otomatis
             if new_overhead != st.session_state['global_overhead']:
                 st.session_state['global_overhead'] = new_overhead
                 calculate_system()
                 st.rerun()
 
+            st.write("---")
             ppn_input = st.number_input("PPN (%)", value=11.0, step=1.0)
-            pt_input = st.text_input("Nama Perusahaan (Kop)", value="SMARTSTUDIIO")
-            signer_input = st.text_input("Nama Penandatangan", value="WARTO SANTOSO, ST")
+            pt_input = st.text_input("Nama Perusahaan", value="SMARTSTUDIIO")
+            signer_input = st.text_input("Penandatangan", value="WARTO SANTOSO, ST")
             pos_input = st.text_input("Jabatan", value="LEADER")
         
+        # Display Rekap
         df_rab = st.session_state['df_rab']
         if 'Divisi' in df_rab.columns:
             rekap_divisi = df_rab.groupby('Divisi')['Total_Harga'].sum().reset_index()
@@ -332,9 +369,15 @@ def main():
         
         with col_main:
             st.markdown("### Tabel Rekapitulasi")
-            rekap_display = rekap_divisi.copy()
-            rekap_display.columns = ['URAIAN PEKERJAAN', 'TOTAL (Rp)']
-            st.dataframe(rekap_display, use_container_width=True, hide_index=True, column_config={"TOTAL (Rp)": st.column_config.NumberColumn(format="Rp %d")})
+            st.dataframe(
+                rekap_divisi, 
+                use_container_width=True, 
+                hide_index=True, 
+                column_config={
+                    "Divisi": st.column_config.TextColumn("URAIAN PEKERJAAN"),
+                    "Total_Harga": st.column_config.NumberColumn("TOTAL (Rp)", format="Rp %d")
+                }
+            )
             
             st.markdown(f"""
             <div style="text-align: right; font-size: 16px; margin-top: 10px;">
@@ -345,28 +388,32 @@ def main():
             """, unsafe_allow_html=True)
         
         excel_rekap = generate_rekap_final_excel(rekap_divisi, ppn_input, pt_input, signer_input, pos_input)
-        st.download_button("📥 Download Excel Rekap", excel_rekap, "1_Rekapitulasi_Biaya.xlsx")
+        st.download_button("📥 Download Excel Laporan", excel_rekap, "1_Rekapitulasi_Biaya.xlsx")
         render_footer()
 
     # === TAB 2: RAB ===
     with tabs[1]:
         st.header("Rencana Anggaran Biaya")
-        st.info("💡 **Tips Kurva S:** Isi kolom 'Durasi_Minggu' dan 'Minggu_Mulai' untuk mengaktifkan grafik Kurva S di Tab 6.")
         
+        # FITUR UTAMA: KUNCI KOLOM (LOCK)
         edited_rab = st.data_editor(
             st.session_state['df_rab'],
             num_rows="dynamic",
             use_container_width=True,
             column_config={
                 "No": st.column_config.NumberColumn(disabled=True),
-                "Divisi": st.column_config.TextColumn(disabled=False),
+                
+                # KOLOM DIKUNCI (READ ONLY)
+                "Divisi": st.column_config.TextColumn(disabled=True, help="Ubah lewat Import Excel jika ingin ganti struktur"),
                 "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True),
                 "Kode_Analisa_Ref": st.column_config.TextColumn(disabled=True),
                 "Harga_Satuan_Jadi": st.column_config.NumberColumn("Harga (+Ovhd)", format="Rp %d", disabled=True),
                 "Total_Harga": st.column_config.NumberColumn("Total", format="Rp %d", disabled=True),
-                "Volume": st.column_config.NumberColumn("Volume"),
-                "Durasi_Minggu": st.column_config.NumberColumn("Durasi (Mgg)", min_value=1, help="Berapa minggu pekerjaan ini berlangsung?"),
-                "Minggu_Mulai": st.column_config.NumberColumn("Start (Mgg)", min_value=1, help="Dimulai pada minggu ke berapa?")
+                
+                # KOLOM BISA DIEDIT (VOLUME & JADWAL)
+                "Volume": st.column_config.NumberColumn("Volume (Input)", disabled=False),
+                "Durasi_Minggu": st.column_config.NumberColumn("Durasi (Mgg)", min_value=1, disabled=False),
+                "Minggu_Mulai": st.column_config.NumberColumn("Start (Mgg)", min_value=1, disabled=False)
             }
         )
         if not edited_rab.equals(st.session_state['df_rab']):
@@ -375,9 +422,28 @@ def main():
             st.rerun()
 
         total_rab = st.session_state['df_rab']['Total_Harga'].sum()
-        st.markdown(f"""<div style="background-color: #f0f2f6; padding: 10px; text-align: right;"><h3>TOTAL JUMLAH: Rp {total_rab:,.0f}</h3></div>""", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background-color: #e6f3ff; padding: 15px; border-radius: 8px; text-align: right; border: 1px solid #2980b9;">
+            <h2 style="color: #2c3e50; margin:0;">TOTAL JUMLAH: Rp {total_rab:,.0f}</h2>
+            <small>Termasuk Overhead {st.session_state['global_overhead']}%</small>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.expander("📂 Import / Download Template Volume"):
+            col_dl, col_up = st.columns([1, 2])
+            with col_dl:
+                template_rab_data = {
+                    'Divisi': ['PEKERJAAN STRUKTUR BAWAH'],
+                    'Uraian_Pekerjaan': ['Contoh: Pondasi Batu Kali'],
+                    'Kode_Analisa_Ref': ['A.2.2.1'],
+                    'Volume': [100]
+                }
+                st.download_button("📥 Download Template", generate_excel_template(template_rab_data, "RAB"), "Template_Volume.xlsx")
+            with col_up:
+                uploaded_rab = st.file_uploader("Upload File Volume", type=['xlsx'], key="upload_rab")
+                if uploaded_rab: load_excel_rab_volume(uploaded_rab)
         
-        st.download_button("📥 Download RAB", to_excel_download(st.session_state['df_rab'], "RAB"), "2_RAB_Detail.xlsx")
+        st.download_button("📥 Download Excel RAB", to_excel_download(st.session_state['df_rab'], "RAB"), "2_RAB_Detail.xlsx")
         render_footer()
 
     # === TAB 3, 4, 5 (Standard) ===
@@ -390,6 +456,7 @@ def main():
             code_map = {c: f"{c} - {df_det[df_det['Kode_Analisa'] == c]['Uraian_Pekerjaan'].iloc[0]}" for c in unique_codes}
             selected_code = st.selectbox("Pilih Pekerjaan:", unique_codes, format_func=lambda x: code_map[x])
         with col_ov:
+            # Display Only (Karena kontrol utama sekarang di Tab 1)
             st.metric("Overhead Global", f"{st.session_state['global_overhead']}%")
 
         df_selected = df_det[df_det['Kode_Analisa'] == selected_code]
@@ -406,6 +473,11 @@ def main():
             st.session_state['df_prices'] = edited_prices
             calculate_system()
             st.rerun()
+        
+        with st.expander("📂 Import Harga"):
+             uploaded_price = st.file_uploader("Upload File", type=['xlsx'], key="upload_price")
+             if uploaded_price: load_excel_prices(uploaded_price)
+
         st.download_button("📥 Download Harga", to_excel_download(st.session_state['df_prices'], "Harga"), "4_Harga.xlsx")
         render_footer()
 
@@ -421,7 +493,7 @@ def main():
             col1, col2, col3 = st.columns(3)
             col1.metric("Modal (Real Cost)", f"Rp {total_mat:,.0f}")
             col2.metric(f"Profit ({st.session_state['global_overhead']}%)", f"Rp {profit:,.0f}")
-            col3.metric("Total Jual", f"Rp {total_mat+profit:,.0f}")
+            col3.metric("Total Jual (RAB)", f"Rp {total_mat+profit:,.0f}")
             
             st.download_button("📥 Download Rekap", to_excel_download(st.session_state['df_material_rekap'], "Material"), "5_Rekap_Material.xlsx")
         render_footer()
@@ -433,27 +505,19 @@ def main():
         df_rab_curve, df_curve_data = generate_s_curve_data()
         
         if df_curve_data is not None:
-            # 1. Tampilkan Tabel Bobot
-            with st.expander("Lihat Detail Bobot & Jadwal"):
-                st.dataframe(df_rab_curve[['Uraian_Pekerjaan', 'Total_Harga', 'Bobot_Pct', 'Durasi_Minggu', 'Minggu_Mulai']], use_container_width=True)
-
-            # 2. Plot Chart
-            st.subheader("Grafik Rencana Kumulatif (%)")
-            
+            # Chart
             chart = alt.Chart(df_curve_data).mark_line(point=True, strokeWidth=3).encode(
                 x=alt.X('Minggu_Int', title='Minggu Ke-', scale=alt.Scale(domainMin=1)),
                 y=alt.Y('Rencana_Kumulatif', title='Bobot Kumulatif (%)', scale=alt.Scale(domain=[0, 100])),
-                tooltip=['Minggu', 'Rencana_Kumulatif', 'Rencana_Parsial']
+                tooltip=['Minggu', 'Rencana_Kumulatif']
             ).interactive()
-            
             st.altair_chart(chart, use_container_width=True)
             
-            # 3. Tabel Data Mingguan
-            st.subheader("Data Kemajuan Mingguan")
-            st.dataframe(df_curve_data.set_index('Minggu'), use_container_width=True)
+            with st.expander("Lihat Data Mingguan"):
+                 st.dataframe(df_curve_data.set_index('Minggu'), use_container_width=True)
             
         else:
-            st.warning("Belum ada data RAB atau Total Harga masih 0.")
+            st.warning("Data RAB belum lengkap.")
         
         render_footer()
 
