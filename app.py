@@ -201,7 +201,8 @@ def process_smart_import(uploaded_file):
 def main():
     st.title("💰 SmartRAB - Estimasi Biaya Cerdas")
     
-# --- Sidebar ---
+
+    # --- Sidebar ---
     with st.sidebar:
         st.header("📋 Data Proyek")
         st.session_state['project_name'] = st.text_input("Nama Proyek", st.session_state['project_name'])
@@ -338,4 +339,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
