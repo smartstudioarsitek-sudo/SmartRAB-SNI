@@ -4,6 +4,156 @@ import io
 import xlsxwriter
 import altair as alt
 import streamlit.components.v1 as components
+import streamlit as st
+import pandas as pd
+
+# ==========================================
+# 1. MODUL DATABASE AHSP (KATALOGISASI)
+# ==========================================
+def load_ahsp_database():
+    """
+    Memuat data katalog AHSP berdasarkan Laporan Arsitektur Teknis.
+    Data ini diambil dari Divisi 1 - 6 (Cipta Karya).
+    """
+    data = [
+        # --- Divisi 1: Persiapan ---
+        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Sementara Kayu (Tinggi 2m)", "Unit": "m'", "Price": 787300},
+        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Seng Gelombang Rangka Kayu", "Unit": "m'", "Price": 635500},
+        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Kawat Duri (Tinggi 2m)", "Unit": "m'", "Price": 378200},
+        {"Category": "Divisi 1: Persiapan", "Item": "Direksi Keet / Gudang (Lantai Plester)", "Unit": "m2", "Price": 3501200},
+        {"Category": "Divisi 1: Persiapan", "Item": "Pembersihan Lahan & Stripping", "Unit": "m2", "Price": 12100},
+        {"Category": "Divisi 1: Persiapan", "Item": "Bouwplank (Pengukuran)", "Unit": "m'", "Price": 171500},
+
+        # --- Divisi 2: Pekerjaan Tanah ---
+        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Biasa (Manual, 0-1m)", "Unit": "m3", "Price": 90800},
+        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Biasa (Manual, 1-2m)", "Unit": "m3", "Price": 108900},
+        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Berbatu (Manual, 0-1m)", "Unit": "m3", "Price": 151500},
+        {"Category": "Divisi 2: Tanah", "Item": "Urugan Pasir", "Unit": "m3", "Price": 372500},
+        {"Category": "Divisi 2: Tanah", "Item": "Urugan Tanah Kembali (Manual)", "Unit": "m3", "Price": 60500},
+
+        # --- Divisi 3: Struktur ---
+        {"Category": "Divisi 3: Struktur", "Item": "Pondasi Batu Belah (Anstamping)", "Unit": "m3", "Price": 657500},
+        {"Category": "Divisi 3: Struktur", "Item": "Beton K-250 (Ready Mix - Material Only)", "Unit": "m3", "Price": 1382600},
+        {"Category": "Divisi 3: Struktur", "Item": "Pembesian Besi Polos (Terpasang)", "Unit": "kg", "Price": 18400},
+        {"Category": "Divisi 3: Struktur", "Item": "Bekisting Kolom (3x Pakai)", "Unit": "m2", "Price": 226400},
+        {"Category": "Divisi 3: Struktur", "Item": "Rangka Atap Baja Ringan (C75)", "Unit": "m2", "Price": 298600},
+
+        # --- Divisi 4: Arsitektur ---
+        {"Category": "Divisi 4: Arsitektur", "Item": "Pasangan Dinding Bata Merah (1/2 Batu)", "Unit": "m2", "Price": 123400},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Pasangan Dinding Bata Merah (1 Batu)", "Unit": "m2", "Price": 278300},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Plesteran 1:6 (Tebal 15mm)", "Unit": "m2", "Price": 55000},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Acian Semen", "Unit": "m2", "Price": 45200},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Lantai Ubin PC (20x20cm)", "Unit": "m2", "Price": 112400},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Plafon Akustik (30x30cm)", "Unit": "m2", "Price": 117300},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Cat Dinding Interior", "Unit": "m2", "Price": 70100},
+
+        # --- Divisi 5: MEP ---
+        {"Category": "Divisi 5: MEP", "Item": "Pipa PVC AW 1/2 Inch", "Unit": "m'", "Price": 20400},
+        {"Category": "Divisi 5: MEP", "Item": "Pipa PVC AW 4 Inch", "Unit": "m'", "Price": 227600},
+        {"Category": "Divisi 5: MEP", "Item": "Kabel NYY 1x4 mm2", "Unit": "m'", "Price": 19400},
+        {"Category": "Divisi 5: MEP", "Item": "Biofilter Septic Tank (2 m3)", "Unit": "unit", "Price": 32730300},
+    ]
+    return pd.DataFrame(data)
+
+# ==========================================
+# 2. FUNGSI INJEKSI (STRATEGI BYPASS)
+# ==========================================
+def render_ahsp_selector():
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📚 Database AHSP (Cipta Karya)")
+    
+    df_ahsp = load_ahsp_database()
+    
+    # 1. Dropdown Kategori
+    kategori_list = df_ahsp['Category'].unique()
+    selected_category = st.sidebar.selectbox("Pilih Divisi Pekerjaan", kategori_list)
+    
+    # 2. Dropdown Item (Filter berdasarkan Kategori)
+    filtered_items = df_ahsp[df_ahsp['Category'] == selected_category]
+    selected_item_name = st.sidebar.selectbox("Pilih Item Pekerjaan", filtered_items['Item'].unique())
+    
+    # Ambil detail item
+    item_row = filtered_items[filtered_items['Item'] == selected_item_name].iloc[0]
+    st.sidebar.info(f"Satuan: {item_row['Unit']} | Harga Estimasi: Rp {item_row['Price']:,.0f}")
+    
+    # 3. Input Parameter Proyek
+    col_vol, col_dur = st.sidebar.columns(2)
+    with col_vol:
+        vol_input = st.number_input("Volume", min_value=1.0, value=10.0, step=1.0, key='vol_ahsp')
+    with col_dur:
+        dur_input = st.number_input("Durasi (Mg)", min_value=1, value=1, key='dur_ahsp')
+    start_input = st.sidebar.number_input("Minggu Ke-", min_value=1, value=1, key='start_ahsp')
+
+    # 4. Eksekusi Tombol Tambah
+    if st.sidebar.button("➕ Masukkan ke RAB"):
+        try:
+            # A. Generate Kode Unik
+            # Format AHSP-XXX agar tidak bentrok dengan kode Excel lama
+            next_id = len(st.session_state.df_analysis['Kode_Analisa'].unique()) + 9000
+            new_code = f"AHSP-{next_id}"
+            
+            # Normalisasi Key (PENTING untuk calculate_system)
+            clean_key = selected_item_name.lower().strip()
+
+            # B. Update df_prices (Harga Dasar)
+            # Kita masukkan harga jadi sebagai harga 'Material'
+            new_price = {
+                'Kode': f"M-{next_id}",
+                'Komponen': selected_item_name,
+                'Satuan': item_row['Unit'],
+                'Harga_Dasar': item_row['Price'],
+                'Kategori': 'Material',
+                'Key': clean_key
+            }
+            st.session_state.df_prices = pd.concat([
+                st.session_state.df_prices, 
+                pd.DataFrame([new_price])
+            ], ignore_index=True)
+
+            # C. Update df_analysis (Resep)
+            # Koefisien 1.0 -> Artinya 1 m2 Dinding butuh 1 unit "Dinding Jadi"
+            new_analysis = {
+                'Kode_Analisa': new_code,
+                'Komponen': selected_item_name,
+                'Koefisien': 1.0,
+                'Key': clean_key
+            }
+            st.session_state.df_analysis = pd.concat([
+                st.session_state.df_analysis, 
+                pd.DataFrame([new_analysis])
+            ], ignore_index=True)
+
+            # D. Update df_rab (Bill of Quantities)
+            new_rab = {
+                'No': len(st.session_state.df_rab) + 1,
+                'Divisi': selected_category,
+                'Uraian_Pekerjaan': selected_item_name,
+                'Kode_Analisa_Ref': new_code,
+                'Satuan_Pek': item_row['Unit'],
+                'Volume': vol_input,
+                'Harga_Satuan_Jadi': 0, # Nanti dihitung ulang system
+                'Total_Harga': 0,       # Nanti dihitung ulang system
+                'Bobot': 0,
+                'Durasi_Minggu': dur_input,
+                'Minggu_Mulai': start_input
+            }
+            st.session_state.df_rab = pd.concat([
+                st.session_state.df_rab, 
+                pd.DataFrame([new_rab])
+            ], ignore_index=True)
+
+            st.sidebar.success(f"Sukses! {selected_item_name} ditambahkan.")
+            st.experimental_rerun()
+
+        except Exception as e:
+            st.sidebar.error(f"Terjadi kesalahan: {e}")
+
+# ==========================================
+# CARA PENGGUNAAN:
+# Panggil function `render_ahsp_selector()` 
+# di dalam main block aplikasi Anda, 
+# misalnya tepat setelah `render_sidebar_menu()`
+# ==========================================
 
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="SmartRAB-SNI", layout="wide")
@@ -109,18 +259,13 @@ def calculate_system():
     unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
     unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_factor 
     
-    # === PERBAIKAN: Samakan Tipe Data Sebelum Merge ===
-    df_r['Kode_Analisa_Ref'] = df_r['Kode_Analisa_Ref'].astype(str).str.strip()
-    unit_prices_pure['Kode_Analisa'] = unit_prices_pure['Kode_Analisa'].astype(str).str.strip()
-    # ==================================================
-
     # 2. Update RAB
     df_r_temp = pd.merge(df_r, unit_prices_pure[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
     df_r['Harga_Satuan_Jadi'] = df_r_temp['Harga_Kalkulasi'].fillna(0)
     df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
     st.session_state['df_rab'] = df_r
 
-    # 3. Hitung Rekap Material (Lanjutan kode lama tetap sama...)
+    # 3. Hitung Rekap Material
     material_breakdown = pd.merge(
         df_r[['Kode_Analisa_Ref', 'Volume']], 
         merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
@@ -137,6 +282,7 @@ def calculate_system():
     }).reset_index()
     
     st.session_state['df_material_rekap'] = rekap_final
+
 # --- 3. Logic Kurva S ---
 def generate_s_curve_data():
     df = st.session_state['df_rab'].copy()
@@ -322,18 +468,11 @@ def load_excel_prices(uploaded_file):
 
 def load_excel_rab_volume(uploaded_file):
     try:
-        # Tambahkan dtype={'Kode_Analisa_Ref': str} agar dibaca sebagai text sejak awal
         df_new = pd.read_excel(uploaded_file)
-        
         required = ['Divisi', 'Uraian_Pekerjaan', 'Kode_Analisa_Ref', 'Volume']
         if not set(required).issubset(df_new.columns):
             st.error(f"Format Excel salah! Wajib ada kolom: {required}")
             return
-        
-        # === PERBAIKAN UTAMA DI SINI ===
-        # Paksa kolom Kode_Analisa_Ref menjadi string (teks) dan hapus spasi kosong
-        df_new['Kode_Analisa_Ref'] = df_new['Kode_Analisa_Ref'].astype(str).str.strip()
-        # ===============================
         
         df_clean = df_new[required].copy()
         df_clean['No'] = range(1, len(df_clean) + 1)
@@ -491,114 +630,43 @@ def main():
         excel_rekap = generate_rekap_final_excel(rekap_divisi, ppn_input, pt_input, signer_input, pos_input)
         st.download_button("📥 Download Excel Laporan", excel_rekap, "1_Rekapitulasi_Biaya.xlsx")
         render_footer()
-# === TAB 2: RAB ===
+
+    # === TAB 2: RAB ===
     with tabs[1]:
         st.header("Rencana Anggaran Biaya")
         render_print_button()
         render_project_identity()
 
-        # --- FITUR BARU: TAMBAH ITEM DARI DATABASE AHSP ---
-        st.markdown("### ➕ Tambah Pekerjaan Baru")
-        with st.container():
-            # 1. Siapkan Data Dropdown (Ambil item unik dari database AHSP)
-            df_analisa_ref = st.session_state['df_analysis'][['Kode_Analisa', 'Uraian_Pekerjaan']].drop_duplicates()
-            
-            # Buat Dictionary untuk mapping Kode -> Nama agar mudah dibaca
-            ahsp_dict = dict(zip(df_analisa_ref['Kode_Analisa'], df_analisa_ref['Uraian_Pekerjaan']))
-            
-            # Layout Input
-            c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
-            
-            with c1:
-                # Dropdown Seleksi dengan Format "KODE - NAMA"
-                pilihan_ahsp = st.selectbox(
-                    "Pilih Item Pekerjaan (Database AHSP)", 
-                    options=df_analisa_ref['Kode_Analisa'],
-                    format_func=lambda x: f"{x} - {ahsp_dict.get(x, '')}"
-                )
-            
-            with c2:
-                # Input Divisi (Bisa ketik baru atau biarkan default)
-                # Kita coba ambil divisi terakhir yang ada di RAB sebagai default agar user tidak ngetik ulang
-                last_divisi = "PEKERJAAN PERSIAPAN"
-                if not st.session_state['df_rab'].empty:
-                    last_divisi = st.session_state['df_rab']['Divisi'].iloc[-1]
-                
-                input_divisi = st.text_input("Kategori / Divisi", value=last_divisi)
-            
-            with c3:
-                input_vol = st.number_input("Volume Awal", min_value=0.0, value=1.0, step=0.1)
-
-            with c4:
-                st.write("") # Spacer agar tombol turun sedikit sejajar input
-                st.write("")
-                btn_add = st.button("➕ Tambahkan", type="primary")
-
-            # Logika Tombol Tambah
-            if btn_add:
-                # Ambil Uraian berdasarkan Kode yang dipilih
-                uraian_fix = ahsp_dict.get(pilihan_ahsp, "Pekerjaan Baru")
-                
-                # Buat Baris Baru
-                new_row = {
-                    'No': len(st.session_state['df_rab']) + 1,
-                    'Divisi': input_divisi,
-                    'Uraian_Pekerjaan': uraian_fix,
-                    'Kode_Analisa_Ref': pilihan_ahsp,
-                    'Satuan_Pek': 'm3',  # Default satuan, bisa diedit nanti di tabel
-                    'Volume': input_vol,
-                    'Harga_Satuan_Jadi': 0.0, # Nanti dihitung otomatis oleh sistem
-                    'Total_Harga': 0.0,
-                    'Durasi_Minggu': 1,
-                    'Minggu_Mulai': 1
-                }
-                
-                # Masukkan ke Session State (Concat DataFrame)
-                st.session_state['df_rab'] = pd.concat([st.session_state['df_rab'], pd.DataFrame([new_row])], ignore_index=True)
-                
-                # Hitung Ulang Sistem & Refresh Halaman
-                calculate_system()
-                st.rerun()
-
-        st.divider()
-        # --------------------------------------------------
-
-        # Menampilkan Tabel Editor (Kode Lama tetap dipakai)
         edited_rab = st.data_editor(
             st.session_state['df_rab'],
             num_rows="dynamic",
             use_container_width=True,
             column_config={
                 "No": st.column_config.NumberColumn(disabled=True),
-                "Divisi": st.column_config.TextColumn(disabled=False, help="Kelompokkan pekerjaan di sini"),
-                "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True, width="large"),
-                "Kode_Analisa_Ref": st.column_config.TextColumn(disabled=True, help="Otomatis dari AHSP"),
-                "Satuan_Pek": st.column_config.TextColumn("Satuan", width="small"),
-                "Harga_Satuan_Jadi": st.column_config.NumberColumn("Harsat (+Ovhd)", format="Rp %d", disabled=True),
+                "Divisi": st.column_config.TextColumn(disabled=True, help="Ubah lewat Import Excel jika ingin ganti struktur"),
+                "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True),
+                "Kode_Analisa_Ref": st.column_config.TextColumn(disabled=True),
+                "Harga_Satuan_Jadi": st.column_config.NumberColumn("Harga (+Ovhd)", format="Rp %d", disabled=True),
                 "Total_Harga": st.column_config.NumberColumn("Total", format="Rp %d", disabled=True),
-                "Volume": st.column_config.NumberColumn("Volume", disabled=False),
+                "Volume": st.column_config.NumberColumn("Volume (Input)", disabled=False),
                 "Durasi_Minggu": st.column_config.NumberColumn("Durasi (Mgg)", min_value=1, disabled=False),
                 "Minggu_Mulai": st.column_config.NumberColumn("Start (Mgg)", min_value=1, disabled=False)
             }
         )
-        
-        # Logika Simpan Perubahan di Tabel Editor
         if not edited_rab.equals(st.session_state['df_rab']):
-            # Update nomor urut otomatis jika ada yang dihapus/ditambah manual lewat tabel
-            edited_rab['No'] = range(1, len(edited_rab) + 1)
             st.session_state['df_rab'] = edited_rab
             calculate_system()
             st.rerun()
 
         total_rab = st.session_state['df_rab']['Total_Harga'].sum()
         st.markdown(f"""
-        <div style="background-color: #e6f3ff; padding: 15px; border-radius: 8px; text-align: right; border: 1px solid #2980b9; margin-top: 10px;">
+        <div style="background-color: #e6f3ff; padding: 15px; border-radius: 8px; text-align: right; border: 1px solid #2980b9;">
             <h2 style="color: #2c3e50; margin:0;">TOTAL JUMLAH: Rp {total_rab:,.0f}</h2>
             <small>Termasuk Overhead {st.session_state['global_overhead']}%</small>
         </div>
         """, unsafe_allow_html=True)
 
-        with st.expander("📂 Opsi Lanjutan (Import / Download)"):
+        with st.expander("📂 Import / Download Template Volume"):
             col_dl, col_up = st.columns([1, 2])
             with col_dl:
                 template_rab_data = {
@@ -607,14 +675,14 @@ def main():
                     'Kode_Analisa_Ref': ['A.2.2.1'],
                     'Volume': [100]
                 }
-                st.download_button("📥 Download Template Excel", generate_excel_template(template_rab_data, "RAB"), "Template_Volume.xlsx")
+                st.download_button("📥 Download Template", generate_excel_template(template_rab_data, "RAB"), "Template_Volume.xlsx")
             with col_up:
-                uploaded_rab = st.file_uploader("Upload File Volume (Excel)", type=['xlsx'], key="upload_rab")
+                uploaded_rab = st.file_uploader("Upload File Volume", type=['xlsx'], key="upload_rab")
                 if uploaded_rab: load_excel_rab_volume(uploaded_rab)
         
-        st.download_button("📥 Download Excel RAB Lengkap", to_excel_download(st.session_state['df_rab'], "RAB"), "2_RAB_Detail.xlsx")
+        st.download_button("📥 Download Excel RAB", to_excel_download(st.session_state['df_rab'], "RAB"), "2_RAB_Detail.xlsx")
         render_footer()
-    
+
     # === TAB 3, 4, 5 (Standard) ===
     with tabs[2]:
         st.header("Detail Analisa (AHSP)")
@@ -690,5 +758,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
