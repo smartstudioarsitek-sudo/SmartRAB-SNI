@@ -4,842 +4,2775 @@ import io
 import xlsxwriter
 import altair as alt
 import streamlit.components.v1 as components
-import streamlit as st
-import pandas as pd
 
 # ==========================================
-# 1. MODUL DATABASE AHSP (KATALOGISASI)
+# 1. KONFIGURASI HALAMAN (WAJIB PALING ATAS)
 # ==========================================
-def load_ahsp_database():
-    """
-    Memuat data katalog AHSP berdasarkan Laporan Arsitektur Teknis.
-    Data ini diambil dari Divisi 1 - 6 (Cipta Karya).
-    """
-    data = [
-        # --- Divisi 1: Persiapan ---
-        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Sementara Kayu (Tinggi 2m)", "Unit": "m'", "Price": 787300},
-        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Seng Gelombang Rangka Kayu", "Unit": "m'", "Price": 635500},
-        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Kawat Duri (Tinggi 2m)", "Unit": "m'", "Price": 378200},
-        {"Category": "Divisi 1: Persiapan", "Item": "Direksi Keet / Gudang (Lantai Plester)", "Unit": "m2", "Price": 3501200},
-        {"Category": "Divisi 1: Persiapan", "Item": "Pembersihan Lahan & Stripping", "Unit": "m2", "Price": 12100},
-        {"Category": "Divisi 1: Persiapan", "Item": "Bouwplank (Pengukuran)", "Unit": "m'", "Price": 171500},
-
-        # --- Divisi 2: Pekerjaan Tanah ---
-        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Biasa (Manual, 0-1m)", "Unit": "m3", "Price": 90800},
-        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Biasa (Manual, 1-2m)", "Unit": "m3", "Price": 108900},
-        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Berbatu (Manual, 0-1m)", "Unit": "m3", "Price": 151500},
-        {"Category": "Divisi 2: Tanah", "Item": "Urugan Pasir", "Unit": "m3", "Price": 372500},
-        {"Category": "Divisi 2: Tanah", "Item": "Urugan Tanah Kembali (Manual)", "Unit": "m3", "Price": 60500},
-
-        # --- Divisi 3: Struktur ---
-        {"Category": "Divisi 3: Struktur", "Item": "Pondasi Batu Belah (Anstamping)", "Unit": "m3", "Price": 657500},
-        {"Category": "Divisi 3: Struktur", "Item": "Beton K-250 (Ready Mix - Material Only)", "Unit": "m3", "Price": 1382600},
-        {"Category": "Divisi 3: Struktur", "Item": "Pembesian Besi Polos (Terpasang)", "Unit": "kg", "Price": 18400},
-        {"Category": "Divisi 3: Struktur", "Item": "Bekisting Kolom (3x Pakai)", "Unit": "m2", "Price": 226400},
-        {"Category": "Divisi 3: Struktur", "Item": "Rangka Atap Baja Ringan (C75)", "Unit": "m2", "Price": 298600},
-
-        # --- Divisi 4: Arsitektur ---
-        {"Category": "Divisi 4: Arsitektur", "Item": "Pasangan Dinding Bata Merah (1/2 Batu)", "Unit": "m2", "Price": 123400},
-        {"Category": "Divisi 4: Arsitektur", "Item": "Pasangan Dinding Bata Merah (1 Batu)", "Unit": "m2", "Price": 278300},
-        {"Category": "Divisi 4: Arsitektur", "Item": "Plesteran 1:6 (Tebal 15mm)", "Unit": "m2", "Price": 55000},
-        {"Category": "Divisi 4: Arsitektur", "Item": "Acian Semen", "Unit": "m2", "Price": 45200},
-        {"Category": "Divisi 4: Arsitektur", "Item": "Lantai Ubin PC (20x20cm)", "Unit": "m2", "Price": 112400},
-        {"Category": "Divisi 4: Arsitektur", "Item": "Plafon Akustik (30x30cm)", "Unit": "m2", "Price": 117300},
-        {"Category": "Divisi 4: Arsitektur", "Item": "Cat Dinding Interior", "Unit": "m2", "Price": 70100},
-
-        # --- Divisi 5: MEP ---
-        {"Category": "Divisi 5: MEP", "Item": "Pipa PVC AW 1/2 Inch", "Unit": "m'", "Price": 20400},
-        {"Category": "Divisi 5: MEP", "Item": "Pipa PVC AW 4 Inch", "Unit": "m'", "Price": 227600},
-        {"Category": "Divisi 5: MEP", "Item": "Kabel NYY 1x4 mm2", "Unit": "m'", "Price": 19400},
-        {"Category": "Divisi 5: MEP", "Item": "Biofilter Septic Tank (2 m3)", "Unit": "unit", "Price": 32730300},
-    ]
-    return pd.DataFrame(data)
-
-# ==========================================
-# 2. FUNGSI INJEKSI (STRATEGI BYPASS)
-# ==========================================
-def render_ahsp_selector():
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📚 Database AHSP (Cipta Karya)")
-    
-    df_ahsp = load_ahsp_database()
-    
-    # 1. Dropdown Kategori
-    kategori_list = df_ahsp['Category'].unique()
-    selected_category = st.sidebar.selectbox("Pilih Divisi Pekerjaan", kategori_list)
-    
-    # 2. Dropdown Item (Filter berdasarkan Kategori)
-    filtered_items = df_ahsp[df_ahsp['Category'] == selected_category]
-    selected_item_name = st.sidebar.selectbox("Pilih Item Pekerjaan", filtered_items['Item'].unique())
-    
-    # Ambil detail item
-    item_row = filtered_items[filtered_items['Item'] == selected_item_name].iloc[0]
-    st.sidebar.info(f"Satuan: {item_row['Unit']} | Harga Estimasi: Rp {item_row['Price']:,.0f}")
-    
-    # 3. Input Parameter Proyek
-    col_vol, col_dur = st.sidebar.columns(2)
-    with col_vol:
-        vol_input = st.number_input("Volume", min_value=1.0, value=10.0, step=1.0, key='vol_ahsp')
-    with col_dur:
-        dur_input = st.number_input("Durasi (Mg)", min_value=1, value=1, key='dur_ahsp')
-    start_input = st.sidebar.number_input("Minggu Ke-", min_value=1, value=1, key='start_ahsp')
-
-    # 4. Eksekusi Tombol Tambah
-    if st.sidebar.button("➕ Masukkan ke RAB"):
-        try:
-            # A. Generate Kode Unik
-            # Format AHSP-XXX agar tidak bentrok dengan kode Excel lama
-            next_id = len(st.session_state.df_analysis['Kode_Analisa'].unique()) + 9000
-            new_code = f"AHSP-{next_id}"
-            
-            # Normalisasi Key (PENTING untuk calculate_system)
-            clean_key = selected_item_name.lower().strip()
-
-            # B. Update df_prices (Harga Dasar)
-            # Kita masukkan harga jadi sebagai harga 'Material'
-            new_price = {
-                'Kode': f"M-{next_id}",
-                'Komponen': selected_item_name,
-                'Satuan': item_row['Unit'],
-                'Harga_Dasar': item_row['Price'],
-                'Kategori': 'Material',
-                'Key': clean_key
-            }
-            st.session_state.df_prices = pd.concat([
-                st.session_state.df_prices, 
-                pd.DataFrame([new_price])
-            ], ignore_index=True)
-
-            # C. Update df_analysis (Resep)
-            # Koefisien 1.0 -> Artinya 1 m2 Dinding butuh 1 unit "Dinding Jadi"
-            new_analysis = {
-                'Kode_Analisa': new_code,
-                'Komponen': selected_item_name,
-                'Koefisien': 1.0,
-                'Key': clean_key
-            }
-            st.session_state.df_analysis = pd.concat([
-                st.session_state.df_analysis, 
-                pd.DataFrame([new_analysis])
-            ], ignore_index=True)
-
-            # D. Update df_rab (Bill of Quantities)
-            new_rab = {
-                'No': len(st.session_state.df_rab) + 1,
-                'Divisi': selected_category,
-                'Uraian_Pekerjaan': selected_item_name,
-                'Kode_Analisa_Ref': new_code,
-                'Satuan_Pek': item_row['Unit'],
-                'Volume': vol_input,
-                'Harga_Satuan_Jadi': 0, # Nanti dihitung ulang system
-                'Total_Harga': 0,       # Nanti dihitung ulang system
-                'Bobot': 0,
-                'Durasi_Minggu': dur_input,
-                'Minggu_Mulai': start_input
-            }
-            st.session_state.df_rab = pd.concat([
-                st.session_state.df_rab, 
-                pd.DataFrame([new_rab])
-            ], ignore_index=True)
-
-            st.sidebar.success(f"Sukses! {selected_item_name} ditambahkan.")
-            st.experimental_rerun()
-
-        except Exception as e:
-            st.sidebar.error(f"Terjadi kesalahan: {e}")
-
-# ==========================================
-# CARA PENGGUNAAN:
-# Panggil function `render_ahsp_selector()` 
-# di dalam main block aplikasi Anda, 
-# misalnya tepat setelah `render_sidebar_menu()`
-# ==========================================
-
-# --- Konfigurasi Halaman ---
 st.set_page_config(page_title="SmartRAB-SNI", layout="wide")
 
-# --- 1. Inisialisasi Data ---
+# ==========================================
+# 2. DATABASE & FUNGSI INJEKSI
+# ==========================================
+def load_ahsp_database():
+    """
+    Memuat data katalog AHSP 2025 (Updated).
+    """
+    
+    # --- PASTE DATA DARI FILE data_2025.py DI BAWAH SINI ---
+    # (Pastikan Kakak meng-copy ISI file data_2025.py, bukan teks chat ini)
+    
+    DATA_AHSP_2025 = [
+        # ... (Di sini harusnya hasil paste ribuan baris data kakak) ...
+    ]
+    
+    # --- AKHIR DARI DATA ---
+
+    return DATA_AHSP_2025
+# DATABASE AHSP 2025 (GENERATED)
+# Source File: Daftar Harga Satuan Pekerjaan.csv
+DATA_AHSP_2025 = [
+    {"Category": "1.1.1 Pembuatan Pagar Proyek", "Item": "Pembuatan 1 mâ pagar sementara dari kayu tinggi 2 meter", "Unit": "Rp836,800.00", "Price": 836, "Source": "AHSP 2025"},
+    {"Category": "1.1.1 Pembuatan Pagar Proyek", "Item": "Pembuatan 1 mâ pagar sementara dari seng gelombang rangka kayu tinggi 2 meter", "Unit": "Rp665,200.00", "Price": 665, "Source": "AHSP 2025"},
+    {"Category": "1.1.1 Pembuatan Pagar Proyek", "Item": "Pembuatan 1 mâ pagar sementara dari kawat duri tinggi 2 meter", "Unit": "Rp412,200.00", "Price": 412, "Source": "AHSP 2025"},
+    {"Category": "1.1.1 Pembuatan Pagar Proyek", "Item": "Pembuatan 1 mâ pagar sementara  seng gelombang rangka baja L.40.40.4 tinggi pagar 1.8 meter", "Unit": "Rp443,200.00", "Price": 443, "Source": "AHSP 2025"},
+    {"Category": "1.1.1 Pembuatan Pagar Proyek", "Item": "Pembuatan 1 m2 pagar BRC Galvanis", "Unit": "Rp20,400.00", "Price": 20, "Source": "AHSP 2025"},
+    {"Category": "1.1.1 Pembuatan Pagar Proyek", "Item": "Pemasangan 1 m2 panel beton pracetak 50x50x240 untuk pagar", "Unit": "Rp524,700.00", "Price": 524, "Source": "AHSP 2025"},
+    {"Category": "1.1.2 Alat dan/atau sarana penunjang", "Item": "1 buah papan nama pekerjaan ukuran 0.8x1.2 menggunakan multiflex 18 mm, frame besi siku dan tiang kayu 8/12", "Unit": "Rp2,022,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "1.1.2 Alat dan/atau sarana penunjang", "Item": "1 buah papan nama pekerjaan ukuran 0.6x08 menggunakan multiplex 10 mm, frame allumunium siku dan tiang kayu 5/7, printing banner plastik", "Unit": "Rp757,300.00", "Price": 757, "Source": "AHSP 2025"},
+    {"Category": "1.1.2 Alat dan/atau sarana penunjang", "Item": "Pembuatan 1 m2 kantor sementara/rumah jaga/gudang semen dan peralatan lantai plesteran, dinding setengah tembok", "Unit": "Rp3,690,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "1.1.2 Alat dan/atau sarana penunjang", "Item": "Pembuatan 1 m2 direksi keet (Kantor), los kerja dan gudang", "Unit": "Rp5,763,900.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "1.1.2 Alat dan/atau sarana penunjang", "Item": "Pembuatan 1 m2 jalan sementara lapis macadam", "Unit": "Rp1,379,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "1.1.2 Alat dan/atau sarana penunjang", "Item": "Pembuatan 1 m2 jalan sementara (Jalan Tanah)", "Unit": "Rp1,281,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "1.1.2 Alat dan/atau sarana penunjang", "Item": "Pembuatan 1 m2 jalan sementara (Jalan Kerikil)", "Unit": "Rp1,343,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "1 m3 Pembersihan dan pengupasan permukaan tanah (striping) s.d. tanaman â 2 cm", "Unit": "Rp16,500.00", "Price": 16, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Tebas tebang 1 m2 tanaman/tumbuhan â < 5 cm", "Unit": "Rp5,200.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Tebas tebang 1 m\n2\n tanaman/tumbuhan â >5 s.d. 15 cm", "Unit": "Rp8,800.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Tebas tebang 1 batang pohon/tumbuhan â >15 s.d. 30 cm", "Unit": "Rp25,800.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Tebas tebang 1 batang pohon/tumbuhan â > 30 s.d 50 cm", "Unit": "Rp22,700.00", "Price": 22, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Tebas tebang 1 batang pohon/tumbuhan â > 50 s.d 75 cm (diameter pohon diukur 1 m di atas permukaan tanah)", "Unit": "Rp56,300.00", "Price": 56, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Tebas tebang 1 batang pohon/tumbuhan â > 75 cm (diameter pohon diukur 1 m di atas permukaan tanah)", "Unit": "Rp73,700.00", "Price": 73, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 5 s.d. 15 cm (termasuk pembuangan sisa tunggul tanpa menutup kembali bekas lubang)", "Unit": "Rp54,800.00", "Price": 54, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 15 cm  s.d. 30 cm (termasuk pembuangan sisa tunggul tanpa menutup kembali bekas lubang)", "Unit": "Rp75,600.00", "Price": 75, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 30 cm  s.d. 50 cm (termasuk pembuangan sisa tunggul tanpa menutup kembali bekas lubang)", "Unit": "Rp104,700.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 50 cm  s.d. 75 cm (termasuk pembuangan sisa tunggul tanpa menutup kembali bekas lubang)", "Unit": "Rp161,400.00", "Price": 161, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 75 cm (termasuk pembuangan sisa tunggul tanpa menutup kembali bekas lubang)", "Unit": "Rp233,300.00", "Price": 233, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 5 s.d. 15 cm (termasuk pembuangan sisa tunggul dengan menutup kembali bekas lubang)", "Unit": "Rp56,200.00", "Price": 56, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 15 cm s.d. 30 cm (termasuk pembuangan sisa tunggul dengan menutup kembali bekas lubang)", "Unit": "Rp90,100.00", "Price": 90, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 15 cm s.d. 50 cm (termasuk pembuangan sisa tunggul dengan menutup kembali bekas lubang)", "Unit": "Rp126,800.00", "Price": 126, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â > 15 cm s.d. 75 cm (termasuk pembuangan sisa tunggul dengan menutup kembali bekas lubang)", "Unit": "Rp198,400.00", "Price": 198, "Source": "AHSP 2025"},
+    {"Category": "1.1.3 Pembersihan dan Pengupasan Permukaan Tanah", "Item": "Gali dan cabut 1 tunggul pohon tanaman keras â >  75 cm (termasuk pembuangan sisa tunggul dengan menutup kembali bekas lubang)", "Unit": "Rp304,900.00", "Price": 304, "Source": "AHSP 2025"},
+    {"Category": "1.1.4 Pengukuran dan Pasangan Bouwplank", "Item": "Pengukuran ulang topografi seluas 1 Ha", "Unit": "Rp3,282,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "1.1.4 Pengukuran dan Pasangan Bouwplank", "Item": "Pasangan 1 m' bouwplank", "Unit": "Rp172,400.00", "Price": 172, "Source": "AHSP 2025"},
+    {"Category": "1.1.4 Pengukuran dan Pasangan Bouwplank", "Item": "Patok Kayu (kaso5/7) Panjang 0,5 m'", "Unit": "Rp191,900.00", "Price": 191, "Source": "AHSP 2025"},
+    {"Category": "1.1.4 Pengukuran dan Pasangan Bouwplank", "Item": "1 Buah Patok Kayu (Kaso 5/7) panjang 1 m'", "Unit": "Rp86,200.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "1.1.4 Pengukuran dan Pasangan Bouwplank", "Item": "Patok Tetap Bantu (PTB)", "Unit": "Rp161,000.00", "Price": 161, "Source": "AHSP 2025"},
+    {"Category": "1.1.4 Pengukuran dan Pasangan Bouwplank", "Item": "Patok Tetap Utama (PTU)", "Unit": "Rp252,800.00", "Price": 252, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam 0 s.d. 1 m untuk volume s.d. 200 m3 secara manual", "Unit": "Rp123,800.00", "Price": 123, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam 0 s.d. 1 m untuk volume 200 m3 s.d 2.000 m3 secara manual", "Unit": "Rp99,000.00", "Price": 99, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam 0 s.d. 1 m untuk volume > 2.000 m3 secara Manual", "Unit": "Rp70,400.00", "Price": 70, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam > 1 s.d. 2 m untuk volume s.d 200 m3 secara manual", "Unit": "Rp148,500.00", "Price": 148, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam > 1 s.d. 2 m untuk volume > 200 m3 secara manual", "Unit": "Rp118,800.00", "Price": 118, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam > 2 s.d. 3 m untuk volume s.d 200 m3 secara manual", "Unit": "Rp176,400.00", "Price": 176, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam > 2 s.d. 3 m untuk volume > 200 m3 secara manual", "Unit": "Rp133,700.00", "Price": 133, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.1 Cara Manual", "Item": "Penggalian 1 m3 tanah biasa sedalam > 3 m, setiap penambahan kedalaman 1 m secara manual", "Unit": "Rp13,200.00", "Price": 13, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanh biasa sedalam > 0 s.d 1 m secara semi mekanis", "Unit": "Rp137,600.00", "Price": 137, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanah biasa sedalam >1 s.d 2 m secara semi mekanis", "Unit": "Rp151,900.00", "Price": 151, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanah biasa sedalam >2 s.d 3 m secara semi mekanis", "Unit": "Rp170,500.00", "Price": 170, "Source": "AHSP 2025"},
+    {"Category": "1.2.1.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanah biasa > 3 m untuk setiap  penambahan kedalaman 1 m secara semi mekanis", "Unit": "Rp20,700.00", "Price": 20, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.1 Cara Manual", "Item": "Penggalian 1 m3 pasir sedalam >0 s.d 1 m secara manual", "Unit": "Rp116,100.00", "Price": 116, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.1 Cara Manual", "Item": "Penggalian 1 m3 pasir sedalam > 1 s.d 2 m secara manual", "Unit": "Rp124,900.00", "Price": 124, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.1 Cara Manual", "Item": "Penggalian 1 m3 pasir sedalam > 2 s.d 3 m secara manual", "Unit": "Rp161,900.00", "Price": 161, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.1 Cara Manual", "Item": "Penggalian 1 m3 pasir sedalam >  3 m  tiap tambahan dalam 1 msecara manual", "Unit": "Rp17,600.00", "Price": 17, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 pasir sedalam >  0 s.d 1 m secara semi mekanis", "Unit": "Rp56,300.00", "Price": 56, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 pasir sedalam >  1 s.d 2 m secara semi mekanis", "Unit": "Rp63,500.00", "Price": 63, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 pasir sedalam >  2 s.d 3 m secara semi mekanis", "Unit": "Rp71,400.00", "Price": 71, "Source": "AHSP 2025"},
+    {"Category": "1.2.2.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 pasir sedalam >   3 m secara semi mekanis untuk setiap tambahan dalm 1 m", "Unit": "Rp9,400.00", "Price": 9, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.1 Cara Manual", "Item": "Penggalian 1 m3 tanah berbatu sedalam > 0 s.d 1 m secara Manual", "Unit": "Rp211,000.00", "Price": 211, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.1 Cara Manual", "Item": "Penggalian 1 m3 tanah berbatu sedalam > 1 s.d 2 m secara Manual", "Unit": "Rp264,000.00", "Price": 264, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.1 Cara Manual", "Item": "Penggalian 1 m3 tanah berbatu sedalam > 2 s.d 3 m secara Manual", "Unit": "Rp290,400.00", "Price": 290, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.1 Cara Manual", "Item": "Penggalian 1 m3 tanah berbatu sedalam >3 m, setiap tambah dalam 1 m secara Manual", "Unit": "Rp24,600.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanah berbatu sedalam > 0 s.d 1 m secara semi mekanis", "Unit": "Rp244,400.00", "Price": 244, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanah berbatu sedalam > 1 s.d 2 m secara semi mekanis", "Unit": "Rp269,300.00", "Price": 269, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanah berbatu sedalam > 2 s.d 3 m secara semi mekanis", "Unit": "Rp301,200.00", "Price": 301, "Source": "AHSP 2025"},
+    {"Category": "1.2.3.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 tanah berbatu sedalam > 3 , setiap tambahan dalam 1 m secara semi mekanis", "Unit": "Rp37,200.00", "Price": 37, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.1 Cara Manual", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 0 s.d 1 m untuk volume s.d 200m3 secara manual", "Unit": "Rp247,500.00", "Price": 247, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.1 Cara Manual", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 0 s.d 1 m untuk volume > 200 m3 secara manual", "Unit": "Rp195,200.00", "Price": 195, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.1 Cara Manual", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 1 s.d 2 m untuk volume s.d 200 m3 secara manual", "Unit": "Rp244,200.00", "Price": 244, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.1 Cara Manual", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 1 s.d 2 m untuk volume > 200 m3 secara manual", "Unit": "Rp244,900.00", "Price": 244, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.1 Cara Manual", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 2 s.d 3 m untuk volume >s.d 200 m3 secara manual", "Unit": "Rp264,000.00", "Price": 264, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.1 Cara Manual", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 3 m tiap tambahan dalam 1 m  secara manual", "Unit": "Rp17,600.00", "Price": 17, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 0 s.d 1 m secara semi mekanis", "Unit": "Rp199,300.00", "Price": 199, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 1 s.d 2 m secara semi mekanis", "Unit": "Rp219,700.00", "Price": 219, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 2 s.d 3 m secara semi mekanis", "Unit": "Rp246,000.00", "Price": 246, "Source": "AHSP 2025"},
+    {"Category": "1.2.4.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 cadas atau tanah keras sedalam > 3 m tiap tambahan dalam 1 m secara semi mekanis", "Unit": "Rp27,700.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.1 Cara Manual", "Item": "Penggalian 1 m3 galian lumpur sedalam >0 s.d 1 m untuk volume s.d 200 m3 secara manual", "Unit": "Rp198,000.00", "Price": 198, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.1 Cara Manual", "Item": "Penggalian 1 m3 galian lumpur sedalam >0 s.d 1 m untuk volume > 200 m3 secara manual", "Unit": "Rp146,000.00", "Price": 146, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.1 Cara Manual", "Item": "Penggalian 1 m3 galian lumpur sedalam > 1 m s.d 2 m untuk volume s.d 200 m3 secara manual", "Unit": "Rp237,600.00", "Price": 237, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.1 Cara Manual", "Item": "Penggalian 1 m3 galian lumpur sedalam > 1 m s.d 2 m untuk volume > 200 m3 secara manual", "Unit": "Rp176,000.00", "Price": 176, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.1 Cara Manual", "Item": "Penggalian 1 m3 galian lumpur sedalam >  2 m s.d 3 m  secara manual", "Unit": "Rp202,400.00", "Price": 202, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.1 Cara Manual", "Item": "Penggalian 1 m3 galian lumpur sedalam >   3 m setiap tambahan dalam 1 m  secara manual", "Unit": "Rp26,400.00", "Price": 26, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 lumpur sedalam >0 s.d 1 m secara semi mekanis", "Unit": "Rp49,300.00", "Price": 49, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 lumpur sedalam > 1 m s.d 2 m secara semi mekanis", "Unit": "Rp76,100.00", "Price": 76, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 lumpur sedalam > 2 m s.d 3 m secara semi mekanis", "Unit": "Rp64,700.00", "Price": 64, "Source": "AHSP 2025"},
+    {"Category": "1.2.5.2 Cara Semi Mekanis", "Item": "Penggalian 1 m3 lumpur sedalam > 3 m setiap tambah kedalaman 1 m secara semi mekanis", "Unit": "Rp6,300.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "1.3.1 Timbunan atau Urukan Secara Manual", "Item": "1 m3 urukan kembali galian tanah ( >0 s.d 200 m3) tanpa pemadatan secara manual", "Unit": "Rp82,500.00", "Price": 82, "Source": "AHSP 2025"},
+    {"Category": "1.3.1 Timbunan atau Urukan Secara Manual", "Item": "1 m3 urukan pasir uruk untuk volume s.d 200 m3 tanpa pemadatan secara manual", "Unit": "Rp385,700.00", "Price": 385, "Source": "AHSP 2025"},
+    {"Category": "1.3.1 Timbunan atau Urukan Secara Manual", "Item": "1 m3 urukan pasir uruk untuk volume > 200 m3 tanpa pemadatan secara manual", "Unit": "Rp347,600.00", "Price": 347, "Source": "AHSP 2025"},
+    {"Category": "1.3.1 Timbunan atau Urukan Secara Manual", "Item": "1 m3 urukan tanah biasa atau tanah liat berpasir tanpa pemadatan secara manual", "Unit": "Rp243,800.00", "Price": 243, "Source": "AHSP 2025"},
+    {"Category": "1.3.1 Timbunan atau Urukan Secara Manual", "Item": "1 m3 Urukan tanah liat (lempung) tanpa pemadatan secara manual", "Unit": "Rp268,400.00", "Price": 268, "Source": "AHSP 2025"},
+    {"Category": "1.3.1 Timbunan atau Urukan Secara Manual", "Item": "1m3 Urukan Batu Kerikil Tanpa Pemadatan secara manual", "Unit": "Rp592,000.00", "Price": 592, "Source": "AHSP 2025"},
+    {"Category": "1.3.1 Timbunan atau Urukan Secara Manual", "Item": "1 m3 Urukan tanah subur tanpa pemadatan secara manual", "Unit": "Rp231,000.00", "Price": 231, "Source": "AHSP 2025"},
+    {"Category": "1.3.2 Pemadatan Secara Menual", "Item": "1 m3 pemadatan tanah per 20 cm menggunakan alat timbris secara manual", "Unit": "Rp82,500.00", "Price": 82, "Source": "AHSP 2025"},
+    {"Category": "1.3.2 Pemadatan Secara Menual", "Item": "1 m3 timbunan dan pemadatan sirtu  secara manual", "Unit": "Rp386,900.00", "Price": 386, "Source": "AHSP 2025"},
+    {"Category": "1.3.3 Pemadatan Secara Semi- Mekanis", "Item": "1 m3 Pemadatan tanah setebal 10 cm menggunakan  mesin Stemper kuda semi mekanis", "Unit": "Rp24,500.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "1.3.3 Pemadatan Secara Semi- Mekanis", "Item": "1 m3 Pemadatan pasir setebal 15 cm menggunakan mesin Stamper kodok semi mekanis", "Unit": "Rp22,000.00", "Price": 22, "Source": "AHSP 2025"},
+    {"Category": "1.3.3 Pemadatan Secara Semi- Mekanis", "Item": "1 m3 Pemadatan pasir setebal 20 cm menggunakan mesin Stamper VRR-550 kg semi mekanis", "Unit": "Rp6,200.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "1.3.3 Pemadatan Secara Semi- Mekanis", "Item": "1 m3 Pemadatan pasir setebal 20 cm menggunakan mesin Stamper VRR-1,5 Ton semi mekanis", "Unit": "Rp3,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "1.3.3 Pemadatan Secara Semi- Mekanis", "Item": "1 m3 Tipbunan dan Pemadatan batu kerikil meggunakan mein stamper kodok semi mekanis", "Unit": "Rp509,500.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "1.3.3 Pemadatan Secara Semi- Mekanis", "Item": "1 m3 Timbunan dan Pemadatan Makadam semi mekanis", "Unit": "Rp525,300.00", "Price": 525, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut s.d 10 m", "Unit": "Rp34,700.00", "Price": 34, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut  > 10 m s.d 20 m", "Unit": "Rp37,100.00", "Price": 37, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 20 m s.d 30 m", "Unit": "Rp40,300.00", "Price": 40, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 30 m s.d 40 m", "Unit": "Rp41,300.00", "Price": 41, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 40 m s.d 50 m", "Unit": "Rp44,900.00", "Price": 44, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 50 m s.d 100 m", "Unit": "Rp56,700.00", "Price": 56, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 100 m s.d 200 m", "Unit": "Rp79,900.00", "Price": 79, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 200 m s.d 300 m", "Unit": "Rp107,400.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 300 m s.d 400 m", "Unit": "Rp139,800.00", "Price": 139, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 400 m s.d 500 m", "Unit": "Rp180,400.00", "Price": 180, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 500 m s.d 600 m", "Unit": "Rp227,300.00", "Price": 227, "Source": "AHSP 2025"},
+    {"Category": "1.4.1 Angkut Tanah Lepas atau Hasil Galian untuk Jarak Horizontal dan medan landai naik serta turun >2\"", "Item": "Mengangkut 1 m3 tanah lepas, jarak angkut > 600 m untuk setiap penambahan jarak angkut 100m", "Unit": "Rp45,300.00", "Price": 45, "Source": "AHSP 2025"},
+    {"Category": "1.4.2 Angkut Material dan / atau Hasil Galian Lainnya", "Item": "1 m3 Pembuangan tanah lumpur sejauh 1 km", "Unit": "Rp183,900.00", "Price": 183, "Source": "AHSP 2025"},
+    {"Category": "1.4.2 Angkut Material dan / atau Hasil Galian Lainnya", "Item": "1 m3 Pembuangan tanah lumpur sejauh 2 km", "Unit": "Rp202,900.00", "Price": 202, "Source": "AHSP 2025"},
+    {"Category": "1.4.2 Angkut Material dan / atau Hasil Galian Lainnya", "Item": "1 m3 Pembuangan tanah lumpur sejauh 3 km", "Unit": "Rp221,800.00", "Price": 221, "Source": "AHSP 2025"},
+    {"Category": "1.4.2 Angkut Material dan / atau Hasil Galian Lainnya", "Item": "1 m3 Pembuangan tanah lumpur sejauh 4 km", "Unit": "Rp240,800.00", "Price": 240, "Source": "AHSP 2025"},
+    {"Category": "1.4.2 Angkut Material dan / atau Hasil Galian Lainnya", "Item": "1 m3 Pembuangan tanah lumpur sejauh 5 km", "Unit": "Rp216,800.00", "Price": 216, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geotekstil, Tipis ( > 100 s.d <400 gr/m2), Secara Manual", "Unit": "Rp24,800.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geotekstil, Tipis ( > 100 s.d <400 gr/m2), Secara Mekanis", "Unit": "Rp23,000.00", "Price": 23, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geotekstil, Tebal Sedang ( > 400 s.d <800 gr/m2), Secara Manual", "Unit": "Rp32,600.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geotekstil, Tebal Sedang ( > 400 s.d <800 gr/m2), Secara Semi Mekanis( untuk bangunan gedung)", "Unit": "Rp30,100.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geotekstil, Tebal (  >800 gr/m2), Secara Manual ( untuk bangunan gedung)", "Unit": "Rp53,500.00", "Price": 53, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geotekstil, Tebal (  >800 gr/m2), Secara Semi Mekanis ( untuk bangunan gedung)", "Unit": "Rp49,300.00", "Price": 49, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geomembran, t=1,5 mm, secara semi mekanis", "Unit": "Rp26,000.00", "Price": 26, "Source": "AHSP 2025"},
+    {"Category": "1.5 Pekerjaan Geotekstil dan Geomembran", "Item": "1 m2 Pasangan Geosynthetic Clay Liner (GCL), secara semi mekanis", "Unit": "Rp487,800.00", "Price": 487, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 pasangan batu (manual) untuk bangunan gedung", "Unit": "Rp198,900.00", "Price": 198, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 pasangan batu dengan jack hammer untuk bangunan gedung", "Unit": "Rp159,500.00", "Price": 159, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 beton mutu rendah fâc < 20 MPa secara manual", "Unit": "Rp258,300.00", "Price": 258, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 beton mutu rendah fâc â¥ 20 MPa secara manual", "Unit": "Rp663,000.00", "Price": 663, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 beton mutu rendah fâc < 20 MPa dengan jack hammer", "Unit": "Rp161,700.00", "Price": 161, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 beton mutu sedang 20 MPa â¤ fâc â¤ 40 MPa dengan jack hammer", "Unit": "Rp192,500.00", "Price": 192, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 pasangan bata merah secara manual", "Unit": "Rp53,100.00", "Price": 53, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 pasangan bata merah dengan jack hammer", "Unit": "Rp32,100.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m2 rangka atap / reng/ kaso struktur kayu dan ditempatkan di pemyimpanan sementara (bongkaran tidak dipakai kembali)", "Unit": "Rp18,400.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 kuda-kuda / gording/ balok kayu dan ditempatkan di pemyimpanan sementara (bogkaran dipakai kembali)", "Unit": "Rp2,439,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m3 kuda-kuda / gording/ balok kayu dan ditempatkan di pemyimpanan sementara (bogkaran tidak dipakai kembali)", "Unit": "Rp2,213,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m2 plafon termasuk rangka kayu/hollow dan ditempatkan di peyimpanan sementara (bongkaran tidak dipakai kembali)", "Unit": "Rp22,500.00", "Price": 22, "Source": "AHSP 2025"},
+    {"Category": "1.6 PEKERJAAN PEMBONGKARAN", "Item": "Bongkaran 1 m2 plafon termasuk rangka kayu/hollow dan ditempatkan di peyimpanan sementara (bongkaran  dipakai kembali)", "Unit": "Rp45,100.00", "Price": 45, "Source": "AHSP 2025"},
+    {"Category": "2.1.1 Rangka Atap Baja Ringan", "Item": "Pemasangan 1 m2 rangka atap pelana baja ringan (canai dingin) profil C75", "Unit": "Rp351,900.00", "Price": 351, "Source": "AHSP 2025"},
+    {"Category": "2.1.1 Rangka Atap Baja Ringan", "Item": "Pemasangan 1 m2 rangka atap jurai/limasan baja ringan (canai dingin) profil C75", "Unit": "Rp361,800.00", "Price": 361, "Source": "AHSP 2025"},
+    {"Category": "2.1.1 Rangka Atap Baja Ringan", "Item": "Pemasangan 1 m Kaso Baja Ringan C75 tebal 0,75 mm", "Unit": "Rp27,700.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "2.1.1 Rangka Atap Baja Ringan", "Item": "Pemasangan 1 m  Baja Ringan R.32 tebal 0,45 mm", "Unit": "Rp44,400.00", "Price": 44, "Source": "AHSP 2025"},
+    {"Category": "2.1.2 Rangka Atap Kayu", "Item": "Pemasangan 1 m3 konstruksi kuda-kuda konvensional, kayu kelas I, II, dan III bentang s.d. 6 meter", "Unit": "Rp17,784,600.00", "Price": 17, "Source": "AHSP 2025"},
+    {"Category": "2.1.2 Rangka Atap Kayu", "Item": "Pemasangan 1 m3 konstruksi kuda-kuda ekspose, kayu kelas I", "Unit": "Rp38,479,900.00", "Price": 38, "Source": "AHSP 2025"},
+    {"Category": "2.1.2 Rangka Atap Kayu", "Item": "Pemasangan 1 m3 konstruksi gordeng, kayu kelas II", "Unit": "Rp16,503,500.00", "Price": 16, "Source": "AHSP 2025"},
+    {"Category": "2.1.2 Rangka Atap Kayu", "Item": "Pemasangan 1 m2 rangka atap genteng keramik, kayu kelas II", "Unit": "Rp234,300.00", "Price": 234, "Source": "AHSP 2025"},
+    {"Category": "2.1.2 Rangka Atap Kayu", "Item": "Pemasangan 1 m2 rangka atap genteng beton, kayu kelas II", "Unit": "Rp257,900.00", "Price": 257, "Source": "AHSP 2025"},
+    {"Category": "2.1.2 Rangka Atap Kayu", "Item": "Pemasangan 1 m2 rangka atap sirap, kayu kelas II", "Unit": "Rp123,500.00", "Price": 123, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan slab untuk BjTP atau BjTS dia. < 12 mm, cara manual (untuk bangunan gedung)", "Unit": "Rp18,900.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan slab untuk  BjTS atau BjTS dia. < 12 mm, cara manual (untuk bangunan gedung)", "Unit": "Rp19,200.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan slab untuk BjTP dia. â¥ 12 mm, cara semi mekanis (untuk bangunan gedung)", "Unit": "Rp18,800.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan slab untuk BjTS dia. â¥ 12 mm, cara semi mekanis (untuk bangunan gedung)", "Unit": "Rp19,400.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg Penulangan Kolom, Balok, Ring Balk dan Sloof untuk BjTP diameter <12 mm cara Manual", "Unit": "Rp17,100.00", "Price": 17, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg Penulangan Kolom, Balok, Ring Balk dan Sloof untuk BjTS diameter <12 mm cara Manual", "Unit": "Rp17,400.00", "Price": 17, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan kolom, balok, ring balk, sloof, dan shearwall untuk BjTP  dia. â¥ 12 mm, cara semi mekanis (untuk bangunan gedung)", "Unit": "Rp91,700.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan kolom, balok, ring balk, sloof, dan shearwall untuk BjTPS  dia. â¥ 12 mm, cara semi mekanis (untuk bangunan gedung)", "Unit": "Rp92,300.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan wiremesh M6-M10 untuk slab atau dinding atau ferrocement, secara manual (untuk bangunan gedung)", "Unit": "Rp13,900.00", "Price": 13, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "1 kg penulangan wiremesh M6-M10 untuk slab atau dinding atau ferrocement, secara semi mekanis", "Unit": "Rp13,200.00", "Price": 13, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "Menaikkan 1 kg tulangan tiap kenaikan vertikal 4 m ke tapak pemasangan secara manual (untuk bangunan gedung)", "Unit": "Rp78.00", "Price": 7800, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "Mengangkut 1 kg tulangan tiap tambahan jarak horizontal 25 m ke tapak pemasangan secara manual (untuk bangunan gedung)", "Unit": "Rp36.00", "Price": 3600, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.1 Penulangan Beton", "Item": "Mengangkut/menaikkan 1 kg tulangan tiap kenaikan vertikal 4 m atau tambahan jarak horizontal 25 m ke tapak pemasangan secara mekanis (untuk bangunan gedung)", "Unit": "Rp1,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.2 Pemasangan 1 m' PVC waterstop", "Item": "Pemasangan 1 m' PVC waterstop lebar 150 mm (untuk bangunan gedung)", "Unit": "Rp102,300.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.2 Pemasangan 1 m' PVC waterstop", "Item": "Pemasangan 1 m' PVC waterstop lebar 200 mm", "Unit": "Rp126,900.00", "Price": 126, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.2 Pemasangan 1 m' PVC waterstop", "Item": "Pemasangan 1 m' PVC waterstop lebar 230-320 mm", "Unit": "Rp179,600.00", "Price": 179, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting untuk pondasi telapak (3 kali pakai)", "Unit": "Rp284,800.00", "Price": 284, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting untuk sloof  (3 kali pakai)", "Unit": "Rp302,400.00", "Price": 302, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting untuk kolom (3 kali pakai)", "Unit": "Rp264,900.00", "Price": 264, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting untuk balok (3 kali pakai)", "Unit": "Rp277,100.00", "Price": 277, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting untuk plat lantai (3 kali pakai)", "Unit": "Rp279,700.00", "Price": 279, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting untuk dinding shearwall (3 kali pakai)", "Unit": "Rp322,900.00", "Price": 322, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting untuk tangga (3 kali pakai)", "Unit": "Rp276,200.00", "Price": 276, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pemasangan 1 m2 bekisting jembatan untuk pengecoran beton (3 kali pakai)", "Unit": "Rp129,000.00", "Price": 129, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pembongkaran 1 m2 bekisting secara biasa pada bangunan gedung (termasuk membersihkan dan membereskan puing-puing)", "Unit": "Rp7,000.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.3 Pemasangan dan Pembongkaran Bekisting", "Item": "Pembongkaran 1 m2 bekisting secara hati-hati pada bangunan gedung (untuk beton expose dan/atau pemanfaatan kembali bekisting)", "Unit": "Rp10,500.00", "Price": 10, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.4 Pembuatan S.D Pengecoran Campuran Beton Secara Manual", "Item": "1 m3 beton mutu rendah f'c 7,5 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara manual", "Unit": "Rp1,118,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.4 Pembuatan S.D Pengecoran Campuran Beton Secara Manual", "Item": "1 m3 beton mutu rendah f'c 10 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara manual", "Unit": "Rp1,678,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.4 Pembuatan S.D Pengecoran Campuran Beton Secara Manual", "Item": "1 m3 beton mutu rendah f'c 15 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara manual", "Unit": "Rp1,738,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.4 Pembuatan S.D Pengecoran Campuran Beton Secara Manual", "Item": "1 m3 beton mutu rendah f'c 17 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara manual", "Unit": "Rp1,763,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.4 Pembuatan S.D Pengecoran Campuran Beton Secara Manual", "Item": "1 m3 beton mutu sedang f'c 20 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara manual", "Unit": "Rp1,803,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.4 Pembuatan S.D Pengecoran Campuran Beton Secara Manual", "Item": "1 m3 beton mutu sedang f'c 21 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara manual", "Unit": "Rp1,834,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu rendah f'c 10 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,642,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu rendah f'c 15 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,702,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu rendah f'c 17 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,727,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu sedang f'c 20 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,766,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu sedang f'c 21 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,797,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu sedang f'c 25 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,857,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu sedang f'c 28 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,903,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu sedang f'c 30 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,934,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu sedang f'c 31 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,951,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton mutu sedang f'c 35 MPa, slump (100 Â± 25) mm, agregat maks 19 mm secara semi mekanis", "Unit": "Rp1,893,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.4.5 Pembuatan s.d. Pengecoran Campuran Beton Secara Mekanis", "Item": "1 m3 beton kedap air dengan aditif secara semi mekanis", "Unit": "Rp2,055,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.6 Pengecoran  Campuran Beton Ready Mix", "Item": "Pengecoran 1 m3  menggunakan ready mixed (untuk bangunan gedung)", "Unit": "Rp1,142,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.7 Angkat dan Angkut Campuran Beton", "Item": "1 m3 beton dicorkan pada tapak setiap tambah jarak 25 m', secara manual", "Unit": "Rp88,600.00", "Price": 88, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.7 Angkat dan Angkut Campuran Beton", "Item": "1 m3 beton dicorkan pada tapak setiap kenaikan 4 m', secara manual", "Unit": "Rp188,900.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.7 Angkat dan Angkut Campuran Beton", "Item": "Pengecoran pakai pompa beton Ã¸ 1,5\"; 5 KW; 8 bar; T = 5 m' (untuk Bangunan Gedung)", "Unit": "Rp948,600.00", "Price": 948, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.7 Angkat dan Angkut Campuran Beton", "Item": "Pengecoran pakai pompa beton Ã¸ 2,5\", 20 KW, 20 bar, T = 18m'", "Unit": "Rp852,700.00", "Price": 852, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.7 Angkat dan Angkut Campuran Beton", "Item": "Pengecoran pakai pompa beton â 2,5â, 75 KW; 120 bar, T = 50 mâ/H= 80 mâ", "Unit": "Rp743,600.00", "Price": 743, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.7 Angkat dan Angkut Campuran Beton", "Item": "Pengecoran pakai pompa beton â 3â,140 KW; 180 bar, T=75 m'/H=150 m'", "Unit": "Rp732,100.00", "Price": 732, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.8 Pemadatan Beton Pada Saat Pengecoran", "Item": "Pemadatan 1 m3 beton dengan baja tulangan pada bangunan gedung", "Unit": "Rp35,200.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.8 Pemadatan Beton Pada Saat Pengecoran", "Item": "Pemadatan 1 m3 beton menggunakan vibrator pada bangunan gedung", "Unit": "Rp84,400.00", "Price": 84, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.9 Pelaksanaan Curing (Pemeliharaan)", "Item": "Menggenangi 1 m2 permukaan beton dengan air selama 4 hari (untuk bangunan gedung)", "Unit": "Rp3,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.9 Pelaksanaan Curing (Pemeliharaan)", "Item": "Menyirami 1 m2 permukaan beton menggunakan media kain terpal selama 4 hari (untuk Bangunan Gedung)", "Unit": "Rp16,700.00", "Price": 16, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.9 Pelaksanaan Curing (Pemeliharaan)", "Item": "Menyirami 1 m2 permukaan beton menggunakan media karung goni selama 4 hari", "Unit": "Rp19,500.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.10 Kolom /Balok Praktis", "Item": "Pembuatan 1 m' kolom praktis beton bertulang (11x11)", "Unit": "Rp130,900.00", "Price": 130, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.10 Kolom /Balok Praktis", "Item": "Pembuatan 1 m' balok praktis beton bertulang (10x15)", "Unit": "Rp179,200.00", "Price": 179, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.11 Grouting", "Item": "1 m3 pekerjaan grouting secara manual pada bangunan gedung", "Unit": "Rp13,071,800.00", "Price": 13, "Source": "AHSP 2025"},
+    {"Category": "2.2.1.11 Grouting", "Item": "1 kg pekerjaan grouting secara injeksi pada bangunan gedung", "Unit": "Rp285,400.00", "Price": 285, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 batu kosong (anstamping) untuk pondasi gedung", "Unit": "Rp703,000.00", "Price": 703, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe M 17,5 Mpa setara 1SP : 2PP, cara manual", "Unit": "Rp1,340,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe M 17,5 Mpa (setara 1SP : 2PP), cara semi mekanis", "Unit": "Rp1,266,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe S 12,5 Mpa (setara 1SP : 3PP), cara manual", "Unit": "Rp1,260,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe S 12,5 Mpa (setara 1SP : 3PP), cara semi mekanis", "Unit": "Rp1,186,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe N 5,2 Mpa (setara 1SP : 4PP), cara manual", "Unit": "Rp1,197,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe N 5,2 Mpa (setara 1SP : 4PP), cara semi mekanis", "Unit": "Rp1,124,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe O 2,4 Mpa (setara 1SP : 5PP), cara manual", "Unit": "Rp1,152,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah mortar tipe O 2,4 Mpa (setara 1SP : 5PP), cara semi mekanis", "Unit": "Rp1,079,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah campuran 1SP : 6PP, cara manual", "Unit": "Rp1,124,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.1 Fondasi Menerus Batu Belah", "Item": "Pemasangan 1 m3 pondasi batu belah campuran 1SP : 6PP, cara semi mekanis", "Unit": "Rp1,050,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.2 Pondasi Sumuran Beton Siklop", "Item": "Pembuatan 1 m3 pondasi beton siklop, 60% beton fc' 15 MPa : 40% batu belah untuk vol. s.d 200 m3 secara manual", "Unit": "Rp1,165,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.2 Pondasi Sumuran Beton Siklop", "Item": "Pembuatan 1 m3 pondasi beton siklop, 60% beton fc' 15 MPa : 40% batu belah untuk vol. > 200 m3 secara manual", "Unit": "Rp1,151,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.2 Pondasi Sumuran Beton Siklop", "Item": "Pembuatan 1 m3 pondasi beton siklop, 60% beton fc' 15 MPa : 40% batu belah untuk vol. > 200 m3 secara semi mekanis", "Unit": "Rp1,094,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.2 Pondasi Sumuran Beton Siklop", "Item": "Pembuatan 1 m3 pondasi beton siklop, 70% beton fc' 15 MPa : 30% batu belah untuk vol. > 200 m3 secara manual", "Unit": "Rp1,244,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.2 Pondasi Sumuran Beton Siklop", "Item": "Pembuatan 1 m3 pondasi beton siklop, 70% beton fc' 15 MPa : 30% batu belah untuk vol. > 200 m3 secara semi mekanis", "Unit": "Rp1,190,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.2 Pondasi Sumuran Beton Siklop", "Item": "Pembuatan 1 m3 pondasi sumuran, diameter 100 cm masif", "Unit": "Rp1,187,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 20 cm pada pada tanah lunak (manual)", "Unit": "Rp711,600.00", "Price": 711, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 20 cm pada pada tanah sedang (manual)", "Unit": "Rp24,500.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 20 cm pada pada tanah keras, sangat padat, dan batuan lunak (manual)", "Unit": "Rp163,100.00", "Price": 163, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 20 cm pada tanah berbatu (manual)", "Unit": "Rp244,900.00", "Price": 244, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 30 cm pada tanah lunak (manual)", "Unit": "Rp1,580,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 30 cm pada tanah sedang (manual)", "Unit": "Rp59,700.00", "Price": 59, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 30 cm pada pada tanah keras, sangat padat, dan batuan lunak (manual)", "Unit": "Rp367,400.00", "Price": 367, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 30 cm pada tanah berbatu (manual)", "Unit": "Rp551,000.00", "Price": 551, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 40 cm pada tanah lunak (manual)", "Unit": "Rp2,820,500.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 40 cm pada tanah sedang (manual)", "Unit": "Rp115,600.00", "Price": 115, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 40 cm pada pada tanah keras, sangat padat, dan batuan lunak (manual)", "Unit": "Rp516,200.00", "Price": 516, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 40 cm pada tanah berbatu (manual)", "Unit": "Rp774,400.00", "Price": 774, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 50 cm pada tanah lunak (manual)", "Unit": "Rp4,438,000.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 50 cm pada tanah sedang (manual)", "Unit": "Rp196,900.00", "Price": 196, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 50 cm pada pada tanah keras, sangat padat, dan batuan lunak (manual)", "Unit": "Rp1,313,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 50 cm pada tanah berbatu (manual)", "Unit": "Rp1,970,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 60 cm (mekanis) untuk  bangunan gedung", "Unit": "Rp142,100.00", "Price": 142, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 80 cm (mekanis) untuk  bangunan gedung", "Unit": "Rp156,200.00", "Price": 156, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 100 cm (mekanis) untuk  bangunan gedung", "Unit": "Rp170,700.00", "Price": 170, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.3 Pondasi Strauss Pile dan Bore Pile", "Item": "Pengeboran 1 m' lubang bored pile Ï 120 cm (mekanis) untuk  bangunan gedung", "Unit": "Rp212,300.00", "Price": 212, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton â  28 cm secara mekanis", "Unit": "Rp90,100.00", "Price": 90, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton â  32 cm secara mekanis", "Unit": "Rp93,100.00", "Price": 93, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton persegi 20cm x 20 cm secara mekanis", "Unit": "Rp100,800.00", "Price": 100, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton persegi 25 cm x 25 cm secara mekanis", "Unit": "Rp105,200.00", "Price": 105, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton persegi 30 cm x 30 cm secara mekanis", "Unit": "Rp107,900.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton persegi 35 cm x 35 cm secara mekanis", "Unit": "Rp108,600.00", "Price": 108, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton persegi 40 cm x 40 cm secara mekanis", "Unit": "Rp112,700.00", "Price": 112, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton persegi 45 cm x 45 cm secara mekanis", "Unit": "Rp117,000.00", "Price": 117, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Tiang Beton persegi 50 cm x 50 cm secara mekanis", "Unit": "Rp117,600.00", "Price": 117, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Spun Pile Diameter 30 cm secara mekanis", "Unit": "Rp104,500.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Spun Pile Diameter 35 cm secara mekanis", "Unit": "Rp106,900.00", "Price": 106, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Spun Pile Diameter 40 cm secara mekanis", "Unit": "Rp109,300.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Spun Pile Diameter 45 cm secara mekanis", "Unit": "Rp113,600.00", "Price": 113, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Spun Pile Diameter 50 cm secara mekanis", "Unit": "Rp114,200.00", "Price": 114, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' penetrasi Spun Pile Diameter 60 cm secara mekanis", "Unit": "Rp115,100.00", "Price": 115, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' Pengelasan Tiang Beton tebal 5 mm", "Unit": "Rp12,700.00", "Price": 12, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' Pengelasan Tiang Beton tebal 6 mm", "Unit": "Rp17,600.00", "Price": 17, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' Pengelasan Tiang Beton tebal 8 mm", "Unit": "Rp30,700.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.4 Pondasi Tiang Pancang", "Item": "Per m' Pengelasan Tiang Beton tebal 10 mm", "Unit": "Rp47,600.00", "Price": 47, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.5 Concrete Sheet Pile", "Item": "Per m' penetrasi turap beton pre-cast 12 x 30 cm , pjg -4 m; berat 100 kg/m'", "Unit": "Rp48,200.00", "Price": 48, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.5 Concrete Sheet Pile", "Item": "Per m' penetrasi turap beton pre-cast 15 x 40 cm , pjg -4 m; berat 150 kg/m'", "Unit": "Rp59,700.00", "Price": 59, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.5 Concrete Sheet Pile", "Item": "Per m' penetrasi turap beton pre-cast 22 x 50 cm , pjg -4 m; berat 275 kg/m'", "Unit": "Rp79,700.00", "Price": 79, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.5 Concrete Sheet Pile", "Item": "Per m' penetrasi turap beton pre-cast 32 x 50 cm , pjg -4 m; berat 400 kg/m'", "Unit": "Rp86,900.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.5 Concrete Sheet Pile", "Item": "Per m' penetrasi turap beton tulang  pre-cast W-400; ebar 1,0 m; pjg -4 m; berat 350 kg/m'", "Unit": "Rp107,100.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "2.2.2.5 Concrete Sheet Pile", "Item": "Per m' penetrasi turap beton tulang  pre-cast W-600; lebar 1,0 m; pjg -4 m; berat 375 kg/m' (untuk bangunan gedung)", "Unit": "Rp116,200.00", "Price": 116, "Source": "AHSP 2025"},
+    {"Category": "2.23.1 Struktur Atas", "Item": "1 kg Pabrikasi dan Ereksi Baja Profil", "Unit": "Rp36,000.00", "Price": 36, "Source": "AHSP 2025"},
+    {"Category": "2.23.1 Struktur Atas", "Item": "1 kg Pemasangan angkur", "Unit": "Rp32,900.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "2.23.1 Struktur Atas", "Item": "1 kg Pemasangan baut", "Unit": "Rp31,800.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "2.23.1 Struktur Atas", "Item": "1 kg pekerjaan  baja pelat secara semi mekanis", "Unit": "Rp47,000.00", "Price": 47, "Source": "AHSP 2025"},
+    {"Category": "2.23.1 Struktur Atas", "Item": "1 kg pekerjaan  baja profil siku dengan pengelasan secara semi mekanis", "Unit": "Rp35,000.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "2.23.1 Struktur Atas", "Item": "1 kg pekerjaan  baja profil siku tanpa pengelasan secara manual", "Unit": "Rp30,100.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "2.4.1 Pembuatan Bekisting", "Item": "Pembuatan 1 m2 Bekisting untuk pelat Beton Pracetak Komponen Modular Bangunan gedung ( 5kali pakai )", "Unit": "Rp266,800.00", "Price": 266, "Source": "AHSP 2025"},
+    {"Category": "2.4.1 Pembuatan Bekisting", "Item": "Pembuatan 1 m2 Bekisting untuk balok Beton Pracetak ( 10 - 12 kali pakai )", "Unit": "Rp83,800.00", "Price": 83, "Source": "AHSP 2025"},
+    {"Category": "2.4.1 Pembuatan Bekisting", "Item": "Pembuatan 1 m2 Bekisting untuk kolom Beton Pracetak ( 10 - 12 kali pakai )", "Unit": "Rp81,500.00", "Price": 81, "Source": "AHSP 2025"},
+    {"Category": "2.4.1 Pembuatan Bekisting", "Item": "Pemasangan 1 titik bekisting joint pracetak", "Unit": "Rp242,800.00", "Price": 242, "Source": "AHSP 2025"},
+    {"Category": "2.4.2 Pemasangan dan Membuka Cetakan", "Item": "Pemasangan dan membuka cetakan 1 buah komponen pelat beton pracetak", "Unit": "Rp12,100.00", "Price": 12, "Source": "AHSP 2025"},
+    {"Category": "2.4.2 Pemasangan dan Membuka Cetakan", "Item": "Pemasangan dan membuka cetakan 1 buah komponen balok beton pracetak", "Unit": "Rp20,100.00", "Price": 20, "Source": "AHSP 2025"},
+    {"Category": "2.4.2 Pemasangan dan Membuka Cetakan", "Item": "Pemasangan dan membuka cetakan 1 buah komponen kolom beton pracetak", "Unit": "Rp16,000.00", "Price": 16, "Source": "AHSP 2025"},
+    {"Category": "2.4.3 Penuangan / Menebar Beton", "Item": "Penuangan / Menebar Beton 1 m3 untuk Pelat Beton Pracetak", "Unit": "Rp85,200.00", "Price": 85, "Source": "AHSP 2025"},
+    {"Category": "2.4.3 Penuangan / Menebar Beton", "Item": "Penuangan / Menebar Beton 1 m3 untuk Balok Beton Pracetak", "Unit": "Rp88,000.00", "Price": 88, "Source": "AHSP 2025"},
+    {"Category": "2.4.3 Penuangan / Menebar Beton", "Item": "Penuangan / Menebar Beton 1 m3 untuk KOLOM Beton Pracetak", "Unit": "Rp77,800.00", "Price": 77, "Source": "AHSP 2025"},
+    {"Category": "2.4.4 Pemindahan Komponen Pracetak", "Item": "Pemindahan 1 buah Komponen untuk Pelat Pracetak (Â± 20 m)", "Unit": "Rp80,000.00", "Price": 80, "Source": "AHSP 2025"},
+    {"Category": "2.4.4 Pemindahan Komponen Pracetak", "Item": "Pemindahan 1 buah Komponen untuk Balok Pracetak (Â± 20 m)", "Unit": "Rp80,000.00", "Price": 80, "Source": "AHSP 2025"},
+    {"Category": "2.4.4 Pemindahan Komponen Pracetak", "Item": "Pemindahan 1 buah Komponen untuk Kolom Pracetak (Â± 20 m)", "Unit": "Rp80,000.00", "Price": 80, "Source": "AHSP 2025"},
+    {"Category": "2.4.5 Pemasagan dan Ereksi Komponen Pracetak", "Item": "Pemasangan 1 buah Komponen untuk Pelat Beton Pracetak Beserta Indeks Kenaikan Lantai Ereksi Pelat  Hingga 24 Lantai", "Unit": "Rp321,100.00", "Price": 321, "Source": "AHSP 2025"},
+    {"Category": "2.4.5 Pemasagan dan Ereksi Komponen Pracetak", "Item": "Pemasangan 1 buah Komponen untuk Balok  Pracetak Beserta Indeks Kenaikan Lantai Ereksi Pelat  Hingga 24 Lantai", "Unit": "Rp292,100.00", "Price": 292, "Source": "AHSP 2025"},
+    {"Category": "2.4.5 Pemasagan dan Ereksi Komponen Pracetak", "Item": "Ereksi 1 buah komponen untuk pelat pracetak", "Unit": "Rp320,800.00", "Price": 320, "Source": "AHSP 2025"},
+    {"Category": "2.4.5 Pemasagan dan Ereksi Komponen Pracetak", "Item": "Ereksi 1 buah komponen untuk balok pracetak", "Unit": "Rp292,100.00", "Price": 292, "Source": "AHSP 2025"},
+    {"Category": "2.4.5 Pemasagan dan Ereksi Komponen Pracetak", "Item": "Ereksi 1 buah komponen untuk kolom pracetak", "Unit": "Rp398,100.00", "Price": 398, "Source": "AHSP 2025"},
+    {"Category": "2.4.5 Pemasagan dan Ereksi Komponen Pracetak", "Item": "Upah 1 tititk pekerjaan Grout pada Joint Beton Pracetak", "Unit": "Rp89,100.00", "Price": 89, "Source": "AHSP 2025"},
+    {"Category": "2.4.5 Pemasagan dan Ereksi Komponen Pracetak", "Item": "Upah 1 titik joint dengan sling", "Unit": "Rp95,100.00", "Price": 95, "Source": "AHSP 2025"},
+    {"Category": "2.4.6 Produksi Lahan", "Item": "Pembuatan 1 m2 lahan produksi tebal 8 cm beton fc' = 14.5 Mpa, slump ( 120 Â± 20) mm", "Unit": "Rp116,700.00", "Price": 116, "Source": "AHSP 2025"},
+    {"Category": "2.4.6 Produksi Lahan", "Item": "Pembuatan 1 m2 lahan produksi tebal 10 cm beton fc' = 14.5 Mpa, slump ( 120 Â± 20) mm", "Unit": "Rp146,000.00", "Price": 146, "Source": "AHSP 2025"},
+    {"Category": "2.4.6 Produksi Lahan", "Item": "Pembuatan 1 m2 lahan produksi tebal 12 cm beton fc' = 14.5 Mpa, slump ( 120 Â± 20) mm", "Unit": "Rp174,900.00", "Price": 174, "Source": "AHSP 2025"},
+    {"Category": "2.4.6 Produksi Lahan", "Item": "Pembuatan 1 m2 lahan produksi tebal 15 cm beton fc' = 14.5 Mpa, slump ( 120 Â± 20) mm", "Unit": "Rp218,700.00", "Price": 218, "Source": "AHSP 2025"},
+    {"Category": "2.5 PEKERJAAN STRUKTUR BETON PRATEGANG", "Item": "Pemasangan 1 kg kabel prategang (prestressed) polos/strand", "Unit": "Rp90,700.00", "Price": 90, "Source": "AHSP 2025"},
+    {"Category": "2.6.2 Pemancangan Tiang Kayu / Cerucuk Bambu/ Dolken", "Item": "Pemancangan per m' tiang pancang kayu atau dolken dia. 6-8 cm", "Unit": "Rp169,000.00", "Price": 169, "Source": "AHSP 2025"},
+    {"Category": "2.6.2 Pemancangan Tiang Kayu / Cerucuk Bambu/ Dolken", "Item": "Pemancangan per m' Tiang kayu Gelondongan dia. 18-20 cm", "Unit": "Rp275,800.00", "Price": 275, "Source": "AHSP 2025"},
+    {"Category": "2.6.2 Pemancangan Tiang Kayu / Cerucuk Bambu/ Dolken", "Item": "1 m2 Turap bambu dari geribig bambu secara manual, JAT < 0,5 m", "Unit": "Rp62,000.00", "Price": 62, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "Pemasangan 1 M' pipa suling - suling menggunakan pipa PVC dia. 1\" (untuk bangunan gedung)", "Unit": "Rp31,300.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "Pemasangan 1 M' pipa suling -suling menggunakan pipa PVC dia. 2\" (untuk bangunan gedung)", "Unit": "Rp55,700.00", "Price": 55, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "Pemasangan 1 m2 Lapisan Ijuk tebal 10 cm", "Unit": "Rp72,600.00", "Price": 72, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "Pemasangan 1 m2 finishing siar pasangan batu kali, campuran 1SP : 2PP", "Unit": "Rp95,000.00", "Price": 95, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 bronjong kawat digalvanis, lubang heksagonal 80 x 100 mm, beda tinggi >0 s.d 1 m' berkontak langsung dengan tanah ( kawat dibuat sendiri)", "Unit": "Rp655,700.00", "Price": 655, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 bronjong kawat digalvanis, lubang heksagonal 80 x 100 mm; beda tinggi > 0 s.d 1 m' tidak berkontak langsung dengan tanah (kawat dibuat sendiri)", "Unit": "Rp560,600.00", "Price": 560, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 bronjong kawat digalvanis, lubang heksagonal 80x100mm; beda tinggi >3 s.d 4 m' berkontak langsung dengan tanah (kawat dibuat sendiri)", "Unit": "Rp749,700.00", "Price": 749, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 bronjong kawat digalvanis, lubang heksagonal 80x100mm; beda tinggi >3 s.d 4 m' tidak berkontak langsung dengan tanah (kawat dibuat sendiri)", "Unit": "Rp654,600.00", "Price": 654, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 kawat bronjong kawat digalvanis, lubang heksagonal 100x120mm; beda tinggi >0 s.d 1 m' berkontak langsung dengan tanah (kawat dibuat sendiri)", "Unit": "Rp638,300.00", "Price": 638, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 kawat bronjong kawat digalvanis, lubang heksagonal 100x120mm; beda tinggi > 0 s.d 1 m' berkontak langsung dengan tanah (kawat dibuat sendiri)", "Unit": "Rp543,300.00", "Price": 543, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 kawat bronjong kawat digalvanis, lubang heksagonal 100x120mm; beda tinggi > 3 s.d 4 m' berkontak langsung dengan tanah (kawat dibuat sendiri)", "Unit": "Rp719,800.00", "Price": 719, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 kawat bronjong kawat digalvanis, lubang heksagonal 100x120mm; beda tinggi > 3 s.d 4 m'  tidak berkontak langsung dengan tanah (kawat dibuat sendiri)", "Unit": "Rp624,700.00", "Price": 624, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 pasangan batu bronjong kawat paprikasi; beda tinggi > 0 s.d 1 m' berkontak langsung dengan tanah", "Unit": "Rp731,200.00", "Price": 731, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 pasangan batu bronjong kawat paprikasi; beda tinggi > 0 s.d 1 m' tidak berkontak langsung dengan tanah", "Unit": "Rp731,200.00", "Price": 731, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 pasangan batu bronjong kawat paprikasi; beda tinggi > 3 s.4  m' berkontak langsung dengan tanah", "Unit": "Rp812,600.00", "Price": 812, "Source": "AHSP 2025"},
+    {"Category": "2.7 Pekerjaan Dinding Penahan Tanah", "Item": "1 m3 pasangan batu bronjong kawat paprikasi; beda tinggi > 3 s.4  m' tidak berkontak langsung dengan tanah", "Unit": "Rp812,600.00", "Price": 812, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m2 atap Genteng Palentong  Kecil", "Unit": "Rp116,200.00", "Price": 116, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m2 atap genteng kodok glazuur", "Unit": "Rp198,700.00", "Price": 198, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m2 atap genteng palentong besar", "Unit": "Rp109,100.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m2 atap genteng beton", "Unit": "Rp135,200.00", "Price": 135, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m' Nok/bubung genteng palentong kecil", "Unit": "Rp188,000.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m' Nok/bubung genteng kodok glazuur", "Unit": "Rp176,400.00", "Price": 176, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m' Nok/bubung genteng palentong besar", "Unit": "Rp176,200.00", "Price": 176, "Source": "AHSP 2025"},
+    {"Category": "3.1.1 Atap Genteng", "Item": "Pemasangan 1 m' Nok/bubung genteng beton", "Unit": "Rp180,700.00", "Price": 180, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap serat semen gelombang 92 cm x 250 cm x 5 mm", "Unit": "Rp102,500.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap serat semen gelombang 92 cm x 225 cm x 5 mm", "Unit": "Rp109,400.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 92 cm x 200 cm x 5 mm", "Unit": "Rp101,100.00", "Price": 101, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 92 cm x 180 cm x 5 mm", "Unit": "Rp109,600.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 105 cm x 270 cm x 4 mm", "Unit": "Rp79,900.00", "Price": 79, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 105 cm x 300 cm x 5 mm", "Unit": "Rp91,100.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 105 cm x 240 cm x 5 mm", "Unit": "Rp102,000.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat gelombang 105 cm x 210 cm x 5 mm", "Unit": "Rp109,200.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 105 cm x 150 cm x 5 mm", "Unit": "Rp144,700.00", "Price": 144, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 108 cm x 300 cm x 6 mm", "Unit": "Rp92,400.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap serat Semen gelombang 108 cm x 270 cm x 6 mm", "Unit": "Rp86,500.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 108 cm x 240 cm x 6 mm", "Unit": "Rp89,500.00", "Price": 89, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 108 cm x 210 cm x 6 mm", "Unit": "Rp89,200.00", "Price": 89, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m2 atap Serat Semen gelombang 108 cm x 180 cm x 6 mm", "Unit": "Rp97,400.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' Nok/bubung setel gelombang 92 cm", "Unit": "Rp396,700.00", "Price": 396, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' Nok/bubung stel gelombang 105 cm", "Unit": "Rp400,000.00", "Price": 400, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' Nok/bubung stel gelombang 108 cm", "Unit": "Rp414,300.00", "Price": 414, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m'Nok/ bubung paten (Permanen) 92 cm", "Unit": "Rp317,000.00", "Price": 317, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' Nok/bubung paten (Permanen) 105 cm", "Unit": "Rp330,700.00", "Price": 330, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' Nok/bubung paten(Permanen) 108 cm", "Unit": "Rp337,300.00", "Price": 337, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' Nok/bubung setel rata 92 cm", "Unit": "Rp323,000.00", "Price": 323, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' ok/bubung setel rata 105 cm", "Unit": "Rp329,100.00", "Price": 329, "Source": "AHSP 2025"},
+    {"Category": "3.1.2 ATAP SERAT SEMEN GELOMBANG", "Item": "Pemasangan 1 m' Nok/bubung setel rata 108 cm", "Unit": "Rp335,100.00", "Price": 335, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap seng gelombang 105x180 cm", "Unit": "Rp97,100.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap aluminium gelombang 95x180 cm", "Unit": "Rp333,300.00", "Price": 333, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap sirap kayu", "Unit": "Rp247,500.00", "Price": 247, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap fibreglass 90x180 cm", "Unit": "Rp119,600.00", "Price": 119, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap UPVC", "Unit": "Rp88,300.00", "Price": 88, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap aspal/bitumen", "Unit": "Rp383,800.00", "Price": 383, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap metal lembaran", "Unit": "Rp196,500.00", "Price": 196, "Source": "AHSP 2025"},
+    {"Category": "3.1.3 Penutup Atap Lainnya", "Item": "Pemasangan 1 m2 atap metal menerus tebal 0,4 mm", "Unit": "Rp140,200.00", "Price": 140, "Source": "AHSP 2025"},
+    {"Category": "3.1.3.9 Pemasangan 1 m2 Atap Kaca Tempered", "Item": "Pemasangan 1 m2 atap kaca ketebalan 8/10/12 mm", "Unit": "Rp795,400.00", "Price": 795, "Source": "AHSP 2025"},
+    {"Category": "3.1.3.9 Pemasangan 1 m2 Atap Kaca Tempered", "Item": "Pemasangan 1 m' Nok/bubung atap seng gelombang", "Unit": "Rp62,600.00", "Price": 62, "Source": "AHSP 2025"},
+    {"Category": "3.1.3.9 Pemasangan 1 m2 Atap Kaca Tempered", "Item": "Pemasangan 1 m' Nok/bubung atap aluminium gelombang", "Unit": "Rp318,900.00", "Price": 318, "Source": "AHSP 2025"},
+    {"Category": "3.1.3.9 Pemasangan 1 m2 Atap Kaca Tempered", "Item": "Pemasangan 1 m' Nok/bubung atap sirap kayu", "Unit": "Rp105,500.00", "Price": 105, "Source": "AHSP 2025"},
+    {"Category": "3.1.3.9 Pemasangan 1 m2 Atap Kaca Tempered", "Item": "Pemasangan 1 m' Nok/bubung atap aspal/bitumen", "Unit": "Rp293,100.00", "Price": 293, "Source": "AHSP 2025"},
+    {"Category": "3.1.3.9 Pemasangan 1 m2 Atap Kaca Tempered", "Item": "Pemasangan 1 m' Nok/bubung genteng metal", "Unit": "Rp103,300.00", "Price": 103, "Source": "AHSP 2025"},
+    {"Category": "3.2 PEKERJAAN INSULASI", "Item": "Pemasangan 1 m2 lembaran insulasi atap", "Unit": "Rp34,200.00", "Price": 34, "Source": "AHSP 2025"},
+    {"Category": "3.2 PEKERJAAN INSULASI", "Item": "Pemasangan 1 m2 modul insulasi tebal 8 mm", "Unit": "Rp111,000.00", "Price": 111, "Source": "AHSP 2025"},
+    {"Category": "3.2 PEKERJAAN INSULASI", "Item": "Pemasangan 1 m2 foam insulasi atap", "Unit": "Rp110,800.00", "Price": 110, "Source": "AHSP 2025"},
+    {"Category": "3.3. PEKERJAAN AKSESORIS ATAP", "Item": "Pemasangan 1 m' talang datar/jurai seng BJLS 28 lebar 90 cm", "Unit": "Rp327,800.00", "Price": 327, "Source": "AHSP 2025"},
+    {"Category": "3.3. PEKERJAAN AKSESORIS ATAP", "Item": "Pemasangan 1 m' talang Â½ lingkaran D-15 cm seng plat BJLS 30", "Unit": "Rp250,700.00", "Price": 250, "Source": "AHSP 2025"},
+    {"Category": "3.3. PEKERJAAN AKSESORIS ATAP", "Item": "Pemasangan 1 m' lisplank uk. 3x20 cm, kayu kelas I atau II", "Unit": "Rp226,600.00", "Price": 226, "Source": "AHSP 2025"},
+    {"Category": "3.3. PEKERJAAN AKSESORIS ATAP", "Item": "Pemasangan 1 m' lisplank uk. 3x30 cm, kayu kelas I atau II", "Unit": "Rp228,700.00", "Price": 228, "Source": "AHSP 2025"},
+    {"Category": "3.3. PEKERJAAN AKSESORIS ATAP", "Item": "Pemasangan 1 m' lisplank non kayu (GRC, serat semen) lebar 30 cm", "Unit": "Rp85,800.00", "Price": 85, "Source": "AHSP 2025"},
+    {"Category": "3.3. PEKERJAAN AKSESORIS ATAP", "Item": "Pemasangan 1 m' lisplank non kayu (GRC, serat semen) lebar 20 cm", "Unit": "Rp83,500.00", "Price": 83, "Source": "AHSP 2025"},
+    {"Category": "3.4 PEKERJAAN WATERPROOFING", "Item": "Pemasangan 1 m2 Waterproofing Membran Bakar", "Unit": "Rp210,700.00", "Price": 210, "Source": "AHSP 2025"},
+    {"Category": "3.4 PEKERJAAN WATERPROOFING", "Item": "Pelapisan 1 M2 Waterproofing Cristalin", "Unit": "Rp131,500.00", "Price": 131, "Source": "AHSP 2025"},
+    {"Category": "3.4 PEKERJAAN WATERPROOFING", "Item": "Pelapisan 1 M2 Waterproofing  Semen Base", "Unit": "Rp150,600.00", "Price": 150, "Source": "AHSP 2025"},
+    {"Category": "3.4 PEKERJAAN WATERPROOFING", "Item": "Pelapisan 1 M2 Waterproofing Acrylic Base", "Unit": "Rp134,600.00", "Price": 134, "Source": "AHSP 2025"},
+    {"Category": "3,5,1 Langit-Langit (Plafon) Akusik", "Item": "Pemasangan 1 m2 plafon akustik uk. 30x30 cm", "Unit": "Rp126,000.00", "Price": 126, "Source": "AHSP 2025"},
+    {"Category": "3,5,1 Langit-Langit (Plafon) Akusik", "Item": "Pemasangan 1 m2 plafon akustik uk. 30x60 cm", "Unit": "Rp132,900.00", "Price": 132, "Source": "AHSP 2025"},
+    {"Category": "3,5,1 Langit-Langit (Plafon) Akusik", "Item": "Pemasangan 1 m2 plafon akustik uk. 60x120 cm", "Unit": "Rp76,400.00", "Price": 76, "Source": "AHSP 2025"},
+    {"Category": "3,5,1 Langit-Langit (Plafon) Akusik", "Item": "Pemasangan 1 m2 plafon akustik uk. 60x120 cm dengan profil aluminium", "Unit": "Rp292,800.00", "Price": 292, "Source": "AHSP 2025"},
+    {"Category": "3.5.2 Langit -Langit (Plafon) Lainnya", "Item": "Pemasangan 1 m2 plafon papan gypsum tebal 9 mm", "Unit": "Rp57,800.00", "Price": 57, "Source": "AHSP 2025"},
+    {"Category": "3.5.2 Langit -Langit (Plafon) Lainnya", "Item": "Pemasangan 1 m2 plafon serat semen/GRC tebal 4 mm, 5 mm, dan 6 mm", "Unit": "Rp79,700.00", "Price": 79, "Source": "AHSP 2025"},
+    {"Category": "3.5.2.3 Pemasangan 1 m2 langit-langit (plafon) kayu lapis, tebal 3 mm, 4 mm dan 6 mm", "Item": "Pemasangan 1 m2 plafon kayu lapis tebal 3 mm", "Unit": "Rp63,200.00", "Price": 63, "Source": "AHSP 2025"},
+    {"Category": "3.5.2.3 Pemasangan 1 m2 langit-langit (plafon) kayu lapis, tebal 3 mm, 4 mm dan 6 mm", "Item": "Pemasangan 1 m2 plafon kayu lapis tebal 4 mm", "Unit": "Rp68,300.00", "Price": 68, "Source": "AHSP 2025"},
+    {"Category": "3.5.2.3 Pemasangan 1 m2 langit-langit (plafon) kayu lapis, tebal 3 mm, 4 mm dan 6 mm", "Item": "Pemasangan 1 m2 plafon kayu lapis tebal 6 mm", "Unit": "Rp72,100.00", "Price": 72, "Source": "AHSP 2025"},
+    {"Category": "3.5.2.3 Pemasangan 1 m2 langit-langit (plafon) kayu lapis, tebal 3 mm, 4 mm dan 6 mm", "Item": "Pemasangan 1 m2 plafon lambisering kayu tebal 9 mm", "Unit": "Rp373,500.00", "Price": 373, "Source": "AHSP 2025"},
+    {"Category": "3.5.2.3 Pemasangan 1 m2 langit-langit (plafon) kayu lapis, tebal 3 mm, 4 mm dan 6 mm", "Item": "Pemasangan 1 m' list plafon kayu profil", "Unit": "Rp15,500.00", "Price": 15, "Source": "AHSP 2025"},
+    {"Category": "3.5.2.3 Pemasangan 1 m2 langit-langit (plafon) kayu lapis, tebal 3 mm, 4 mm dan 6 mm", "Item": "Pemasangan 1 m' list plafon gypsum", "Unit": "Rp28,600.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "3.5.2.3 Pemasangan 1 m2 langit-langit (plafon) kayu lapis, tebal 3 mm, 4 mm dan 6 mm", "Item": "Pemasangan 1 m2 plafon aluminium spandrel", "Unit": "Rp422,300.00", "Price": 422, "Source": "AHSP 2025"},
+    {"Category": "3.5.3 Rangka Langit-Langit (Plafon)", "Item": "Pemasangan 1 m2 rangka plafon besi hollow 40.40, modul 60x60 cm", "Unit": "Rp159,000.00", "Price": 159, "Source": "AHSP 2025"},
+    {"Category": "3.5.3 Rangka Langit-Langit (Plafon)", "Item": "Pemasangan 1 m2 Rangka Langit-langit (Plafon) (50x 100) cm, Kayu Kelas II atau III", "Unit": "Rp261,500.00", "Price": 261, "Source": "AHSP 2025"},
+    {"Category": "3.5.3 Rangka Langit-Langit (Plafon)", "Item": "Pemasangan 1 m2 Rangka Langit-langit (Plafon) (60x 100) cm, Kayu Kelas II atau III", "Unit": "Rp283,800.00", "Price": 283, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1 batu dengan mortar tipe M,fcâ 17,2 MPa (Setara Campuran 1SP : 2PP)", "Unit": "Rp320,800.00", "Price": 320, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1 batu dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp304,400.00", "Price": 304, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1 batu dengan mortar tipe N,fcâ 5,2 MPa (Setara Campuran 1SP : 4PP)", "Unit": "Rp293,000.00", "Price": 293, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1 batu dengan mortar tipe O,fcâ 2,4 MPa (Setara Campuran 1SP : 5PP)", "Unit": "Rp287,600.00", "Price": 287, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1 batu campuran 1SP : 6PP", "Unit": "Rp286,700.00", "Price": 286, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1/2 batu dengan mortar tipe M,fcâ 17,2 MPa (Setara Campuran 1SP : 2PP)", "Unit": "Rp154,500.00", "Price": 154, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1/2 batu dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp146,600.00", "Price": 146, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1/2 batu dengan mortar tipe N,fcâ 5,2 MPa (Setara Campuran 1SP : 4PP)", "Unit": "Rp142,100.00", "Price": 142, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1/2 batu dengan mortar tipe O,fcâ 2,4 MPa (Setara Campuran 1SP : 5PP)", "Unit": "Rp139,300.00", "Price": 139, "Source": "AHSP 2025"},
+    {"Category": "3.6.1 Dinding Bata Merah", "Item": "Pemasangan 1 m2 dinding bata merah tebal 1/2 batu campuran 1SP : 6PP", "Unit": "Rp138,000.00", "Price": 138, "Source": "AHSP 2025"},
+    {"Category": "3.6.2 DINDING CONBLOCK", "Item": "Pemasangan 1 m2 dinding conblock HB20 dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp531,400.00", "Price": 531, "Source": "AHSP 2025"},
+    {"Category": "3.6.2 DINDING CONBLOCK", "Item": "Pemasangan 1 m2 dinding conblock HB20 dengan mortar tipe N,fcâ 5,2 MPa (Setara Campuran 1SP : 4PP)", "Unit": "Rp542,100.00", "Price": 542, "Source": "AHSP 2025"},
+    {"Category": "3.6.2 DINDING CONBLOCK", "Item": "Pemasangan 1 m2 dinding conblock HB15 dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp428,200.00", "Price": 428, "Source": "AHSP 2025"},
+    {"Category": "3.6.2 DINDING CONBLOCK", "Item": "Pemasangan 1 m2 dinding conblock HB15 dengan mortar tipe N,fcâ 5,2 MPa (Setara Campuran 1SP : 4PP)", "Unit": "Rp429,400.00", "Price": 429, "Source": "AHSP 2025"},
+    {"Category": "3.6.2 DINDING CONBLOCK", "Item": "Pemasangan 1 m2 dinding conblock HB10 dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp357,700.00", "Price": 357, "Source": "AHSP 2025"},
+    {"Category": "3.6.2 DINDING CONBLOCK", "Item": "Pemasangan 1 m2 dinding conblock HB10 dengan mortar tipe N,fcâ 5,2 MPa (Setara Campuran 1SP : 4PP)", "Unit": "Rp359,300.00", "Price": 359, "Source": "AHSP 2025"},
+    {"Category": "3.6.3 DINDING ROSTER", "Item": "Pemasangan 1 m2 dinding kerawang (rooster) 12x11x24 dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp690,600.00", "Price": 690, "Source": "AHSP 2025"},
+    {"Category": "3.6.3 DINDING ROSTER", "Item": "Pemasangan 1 m2 dinding kerawang (rooster) 12x11x24 dengan mortar tipe N,fcâ 5,2 MPa (Setara Campuran 1SP : 4PP)", "Unit": "Rp685,000.00", "Price": 685, "Source": "AHSP 2025"},
+    {"Category": "3.6.3 DINDING ROSTER", "Item": "Pemasangan 1 m2 dinding bata berongga ekspose 12x11x24 dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp715,800.00", "Price": 715, "Source": "AHSP 2025"},
+    {"Category": "3.6.3 DINDING ROSTER", "Item": "Pemasangan 1 m2 glass block 20x20 cm, 1PC : 3PP", "Unit": "Rp160,300.00", "Price": 160, "Source": "AHSP 2025"},
+    {"Category": "3.6.3 DINDING ROSTER", "Item": "Pemasangan 1 m2 dinding kerawang (rooster) 20x20 (Setara Campuran 1SP : 3PP)", "Unit": "Rp521,200.00", "Price": 521, "Source": "AHSP 2025"},
+    {"Category": "3.6.4 DINDING BATA RINGAN", "Item": "Pemasangan 1 m2 dinding bata ringan tebal 7,5 cm dengan mortar siap pakai", "Unit": "Rp130,700.00", "Price": 130, "Source": "AHSP 2025"},
+    {"Category": "3.6.4 DINDING BATA RINGAN", "Item": "Pemasangan 1 m2 dinding bata ringan tebal 10 cm dengan mortar siap pakai", "Unit": "Rp156,500.00", "Price": 156, "Source": "AHSP 2025"},
+    {"Category": "3.6.4 DINDING BATA RINGAN", "Item": "Pemasangan 1 m2 dinding bata ringan tebal 20 cm dengan mortar siap pakai", "Unit": "Rp271,700.00", "Price": 271, "Source": "AHSP 2025"},
+    {"Category": "3.6.5 DINDING BATAKO", "Item": "Pemasangan 1 m2 dinding batako dengan mortar tipe S,fcâ 12,5 MPa (Setara Campuran 1SP : 3PP)", "Unit": "Rp189,800.00", "Price": 189, "Source": "AHSP 2025"},
+    {"Category": "3.6.5 DINDING BATAKO", "Item": "Pemasangan 1 m2 dinding batako dengan mortar tipe N,fcâ 5,2 MPa (Setara Campuran 1SP : 4PP)", "Unit": "Rp379,400.00", "Price": 379, "Source": "AHSP 2025"},
+    {"Category": "3.6.6 DINDING PARTISI", "Item": "Pemasangan 1 m2 dinding partisi, Gypsumboard t=12mm", "Unit": "Rp483,100.00", "Price": 483, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran 1SP : 1PP tebal 15 mm", "Unit": "Rp86,000.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran 1SP : 2PP tebal 15 mm", "Unit": "Rp77,400.00", "Price": 77, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran 1SP : 3PP tebal 15 mm", "Unit": "Rp73,700.00", "Price": 73, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran 1SP : 4PP tebal 15 mm", "Unit": "Rp71,100.00", "Price": 71, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran 1SP : 5PP tebal 15 mm", "Unit": "Rp69,800.00", "Price": 69, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran 1SP : 6PP tebal 15 mm", "Unit": "Rp68,600.00", "Price": 68, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran dengan semen instan tebal 10 mm", "Unit": "Rp77,400.00", "Price": 77, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 acian", "Unit": "Rp58,300.00", "Price": 58, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 berapen 1SP : 5PP tebal 15 mm", "Unit": "Rp84,200.00", "Price": 84, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m' plesteran skoning 1SP : 3PP lebar 10 cm", "Unit": "Rp70,700.00", "Price": 70, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran serbuk batu granit 1SP : 2 granit, tebal 10 mm", "Unit": "Rp268,800.00", "Price": 268, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 plesteran serbuk batu traso 1SP : 2 traso, tebal 10 mm", "Unit": "Rp285,300.00", "Price": 285, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 kamprotan untuk finishing 1SP : 2PP", "Unit": "Rp44,200.00", "Price": 44, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 finishing siar pasangan bata merah", "Unit": "Rp44,500.00", "Price": 44, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pemasangan 1 m2 finishing dinding siar pasangan conblock ekspose", "Unit": "Rp32,000.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "3.7 PEKERJAAN PLESTERAN DAN ACIAN", "Item": "Pekerjaan 1 m2 Beton Expose", "Unit": "Rp48,000.00", "Price": 48, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pengikisan/pengerokan 1 m2 permukaan cat lama (cat minyak)", "Unit": "Rp25,700.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pencucian 1 m2 permukaan tembok yang pernah dicat", "Unit": "Rp25,800.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pengerokan 1 m2 karat pada permukaan baja cara manual", "Unit": "Rp25,800.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pengecatan 1 m2 bidang kayu baru (1 lapis plamir, 1 lapis cat dasar, 2 lapis cat penutup)", "Unit": "Rp50,700.00", "Price": 50, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pengecatan 1 m2 bidang kayu baru (1 lapis plamir, 1 lapis cat dasar, 3 lapis cat penutup)", "Unit": "Rp77,100.00", "Price": 77, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pelaburan 1 m2 bidang kayu dengan teak oil", "Unit": "Rp31,200.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pelaburan 1 m2 bidang kayu dengan pelitur", "Unit": "Rp66,800.00", "Price": 66, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pelaburan 1 m2 bidang kayu dengan residu atau Ter", "Unit": "Rp24,500.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "3.8 PEKERJAAN PENGECATAN DAN PELITURAN", "Item": "Pelaburan 1 m2 bidang kayu dengan vernis", "Unit": "Rp68,500.00", "Price": 68, "Source": "AHSP 2025"},
+    {"Category": "3.8.10 Pengecatan 1 M2 Tembol Baru", "Item": "Pengecatan 1 m2 tembok baru Interior( 1 lapis cat dasar, 2 lapis cat penutup)", "Unit": "Rp75,000.00", "Price": 75, "Source": "AHSP 2025"},
+    {"Category": "3.8.10 Pengecatan 1 M2 Tembol Baru", "Item": "Pengecatan 1 m2 tembok baru Ekterior (1 lapis cat dasar, 2 lapis cat penutup), eksterior", "Unit": "Rp81,500.00", "Price": 81, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 tembok lama Interior  (1 lapis cat dasar, 2 lapis cat penutup)", "Unit": "Rp60,000.00", "Price": 60, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 tembok lama Ekterior (1 lapis cat dasar, 2 lapis cat penutup)", "Unit": "Rp62,400.00", "Price": 62, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pelaburan 1 m2 tembok baru dengan kapur padam (kapur pemutih)", "Unit": "Rp33,100.00", "Price": 33, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pelaburan 1 m2 tembok lama dengan kapur padam (kapur pemutih)", "Unit": "Rp18,600.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 permukaan baja galvanis 3 lapis cat terakhir secara semprot", "Unit": "Rp91,200.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 permukaan baja galvanis secara manual sistem 3 lapis", "Unit": "Rp254,100.00", "Price": 254, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 permukaan baja dengan menie besi (Zinc Chromate)", "Unit": "Rp50,800.00", "Price": 50, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 permukaan baja dengan menie besi dengan perancah", "Unit": "Rp97,000.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 permukaan baja galvanis secara manual sistem 4 lapis", "Unit": "Rp108,500.00", "Price": 108, "Source": "AHSP 2025"},
+    {"Category": "3.8.11 Pengecatan 1 m2 Tembok Lama", "Item": "Pengecatan 1 m2 permukaan baja galvanis secara manual sistem 1 lapis cat penutup", "Unit": "Rp40,500.00", "Price": 40, "Source": "AHSP 2025"},
+    {"Category": "3.8.20 Pengecatan 1 m2 plafon (1 lapis cat dasar dan 2 lapis cat penutup)", "Item": "Pengecatan 1 m2 plafon Interior ( 1 lapis Cat Dasar dan 2 Lapis Cat Penutup)", "Unit": "Rp64,600.00", "Price": 64, "Source": "AHSP 2025"},
+    {"Category": "3.8.20 Pengecatan 1 m2 plafon (1 lapis cat dasar dan 2 lapis cat penutup)", "Item": "Pengecatan 1 m2 plafon eksterior ( 1 lapis Cat Dasar dan 2 Lapis Cat Penutup)", "Unit": "Rp63,600.00", "Price": 63, "Source": "AHSP 2025"},
+    {"Category": "3.8.20 Pengecatan 1 m2 plafon (1 lapis cat dasar dan 2 lapis cat penutup)", "Item": "Pengecatan 1 m2 cat epoxy tebal 2 mm", "Unit": "Rp106,700.00", "Price": 106, "Source": "AHSP 2025"},
+    {"Category": "3.8.20 Pengecatan 1 m2 plafon (1 lapis cat dasar dan 2 lapis cat penutup)", "Item": "Pelituran 1 m2 dengan pelitur melamic", "Unit": "Rp349,500.00", "Price": 349, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 m2 lantai ubin PC abu-abu uk. 20x20 cm (1SP : 2PP)", "Unit": "Rp126,200.00", "Price": 126, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 m2 lantai ubin PC abu-abu uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp114,600.00", "Price": 114, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 m2 lantai ubin PC abu-abu uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp107,000.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 m2 lantai ubin PC abu-abu uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp109,200.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 mâ plint ubin PC abu-abu uk. 10 s.d. 15x20 cm (1SP : 2PP)", "Unit": "Rp24,800.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 mâ plint ubin PC abu-abu uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp26,100.00", "Price": 26, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 mâ plint ubin PC abu-abu uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp27,200.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "3.9.1 UBIN PC", "Item": "Pemasangan 1 mâ plint ubin PC abu-abu uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp27,500.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m2 lantai ubin warna uk. 20x20 cm (1SP : 2PP)", "Unit": "Rp139,100.00", "Price": 139, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m2 lantai ubin warna uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp141,600.00", "Price": 141, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m2 lantai ubin warna uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp130,000.00", "Price": 130, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m2 lantai ubin warna uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp128,500.00", "Price": 128, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m' plint ubin warna uk. 10 s.d. 15x20 cm (1SP : 2PP)", "Unit": "Rp29,300.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m' plint ubin warna uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp29,700.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m' plint ubin warna uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp31,700.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "3.9.2 UBIN WARNA", "Item": "Pemasangan 1 m' plint ubin warna uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp33,000.00", "Price": 33, "Source": "AHSP 2025"},
+    {"Category": "3.9.3 UBIN TERASO", "Item": "Pemasangan 1 m2 lantai ubin teraso uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp391,800.00", "Price": 391, "Source": "AHSP 2025"},
+    {"Category": "3.9.3 UBIN TERASO", "Item": "Pemasangan 1 m2 lantai ubin teraso uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp303,300.00", "Price": 303, "Source": "AHSP 2025"},
+    {"Category": "3.9.3 UBIN TERASO", "Item": "Pemasangan 1 m2 lantai teraso cor di tempat, tebal 3cm", "Unit": "Rp233,500.00", "Price": 233, "Source": "AHSP 2025"},
+    {"Category": "3.9.3 UBIN TERASO", "Item": "Pemasangan 1 m' plint ubin teraso uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp37,400.00", "Price": 37, "Source": "AHSP 2025"},
+    {"Category": "3.9.3 UBIN TERASO", "Item": "Pemasangan 1 m' plint ubin teraso uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp40,400.00", "Price": 40, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m2 lantai homogenous tile  Polis uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp340,500.00", "Price": 340, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m2 lantai homogenous tile polish uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp303,300.00", "Price": 303, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m2 lantai homogenous tile Polish  uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp263,300.00", "Price": 263, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' plint homogenous tile Polish  uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp41,200.00", "Price": 41, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' plint homogenous tile polish uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp43,300.00", "Price": 43, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' plint homogenous tile polish uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp43,600.00", "Price": 43, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' lantai homogenous tile unpolish uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp430,300.00", "Price": 430, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' lantai homogenous tile unpolish uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp368,200.00", "Price": 368, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' lantai homogenous tile unpolish uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp282,500.00", "Price": 282, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' plint homogenous tile unpolish uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp48,900.00", "Price": 48, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' plint homogenous tile unpolish uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp49,100.00", "Price": 49, "Source": "AHSP 2025"},
+    {"Category": "3.9.4 HOMOGENEOUS TILE", "Item": "Pemasangan 1 m' plint homogenous tile unpolish uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp49,400.00", "Price": 49, "Source": "AHSP 2025"},
+    {"Category": "3.9.5 UBIN GRANIT", "Item": "Pemasangan 1 m2 lantai ubin granit uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp266,000.00", "Price": 266, "Source": "AHSP 2025"},
+    {"Category": "3.9.5 UBIN GRANIT", "Item": "Pemasangan 1 m2 lantai ubin granit uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp231,100.00", "Price": 231, "Source": "AHSP 2025"},
+    {"Category": "3.9.5 UBIN GRANIT", "Item": "Pemasangan 1 m2 lantai ubin granit uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp199,100.00", "Price": 199, "Source": "AHSP 2025"},
+    {"Category": "3.9.5 UBIN GRANIT", "Item": "Pemasangan 1 m' plint ubin granit uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp45,100.00", "Price": 45, "Source": "AHSP 2025"},
+    {"Category": "3.9.5 UBIN GRANIT", "Item": "Pemasangan 1 m' plint ubin granit uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp46,200.00", "Price": 46, "Source": "AHSP 2025"},
+    {"Category": "3.9.5 UBIN GRANIT", "Item": "Pemasangan 1 m' plint ubin granit uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp43,600.00", "Price": 43, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m2 lantai ubin teralux marmer uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp661,300.00", "Price": 661, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m2 lantai ubin teralux marmer uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp519,800.00", "Price": 519, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m2 lantai ubin teralux marmer uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp327,500.00", "Price": 327, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m' plint ubin teralux kerang uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp29,700.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m' plint ubin teralux kerang uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp31,700.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m' plint ubin teralux kerang uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp32,000.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m' plint ubin teralux marmer uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp31,600.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m' plint ubin teralux marmer uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp31,700.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "3.9.6 UBIN TERALUX", "Item": "Pemasangan 1 m' plint ubin teralux marmer uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp32,000.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "3.9.7 KERAMIK ARTISTIK", "Item": "Pemasangan 1 m2 lantai keramik artistik uk. 8x8 cm (1SP : 2PP)", "Unit": "Rp314,100.00", "Price": 314, "Source": "AHSP 2025"},
+    {"Category": "3.9.7 KERAMIK ARTISTIK", "Item": "Pemasangan 1 m2 lantai keramik artistik uk. 10x10 cm (1SP : 2PP)", "Unit": "Rp306,900.00", "Price": 306, "Source": "AHSP 2025"},
+    {"Category": "3.9.7 KERAMIK ARTISTIK", "Item": "Pemasangan 1 m2 lantai keramik artistik uk. 20x20 cm (1SP : 2PP)", "Unit": "Rp287,200.00", "Price": 287, "Source": "AHSP 2025"},
+    {"Category": "3.9.7 KERAMIK ARTISTIK", "Item": "Pemasangan 1 m2 lantai keramik artistik uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp267,900.00", "Price": 267, "Source": "AHSP 2025"},
+    {"Category": "3.9.7 KERAMIK ARTISTIK", "Item": "Pemasangan 1 m2 lantai keramik artistik uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp258,300.00", "Price": 258, "Source": "AHSP 2025"},
+    {"Category": "3.9.7 KERAMIK ARTISTIK", "Item": "Pemasangan 1 m' plint internal cove artistik uk. 5x5x20 cm (1SP : 2PP)", "Unit": "Rp311,300.00", "Price": 311, "Source": "AHSP 2025"},
+    {"Category": "3.9.8 KERAMIK", "Item": "Pemasangan 1 m2 lantai keramik uk. 20x20 cm (1SP : 2PP)", "Unit": "Rp144,900.00", "Price": 144, "Source": "AHSP 2025"},
+    {"Category": "3.9.8 KERAMIK", "Item": "Pemasangan 1 m2 lantai keramik uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp135,100.00", "Price": 135, "Source": "AHSP 2025"},
+    {"Category": "3.9.8 KERAMIK", "Item": "Pemasangan 1 m2 lantai keramik uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp145,200.00", "Price": 145, "Source": "AHSP 2025"},
+    {"Category": "3.9.8.4 Pemasangan Lantai Keramik untuk Variasi/Border", "Item": "Pemasangan 1 m2 lantai keramik uk. 30x30 cm  untuk Variasi/Border (1SP : 2PP)", "Unit": "Rp359,200.00", "Price": 359, "Source": "AHSP 2025"},
+    {"Category": "3.9.8.4 Pemasangan Lantai Keramik untuk Variasi/Border", "Item": "Pemasangan 1 m2 lantai keramik uk. 40x40 cm  untuk Variasi/Border (1SP : 2PP)", "Unit": "Rp366,300.00", "Price": 366, "Source": "AHSP 2025"},
+    {"Category": "3.9.8.4 Pemasangan Lantai Keramik untuk Variasi/Border", "Item": "Pemasangan 1 m' plint keramik uk. 10 s.d. 15x20 cm (1SP : 2PP)", "Unit": "Rp32,200.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "3.9.8.4 Pemasangan Lantai Keramik untuk Variasi/Border", "Item": "Pemasangan 1 m' plint keramik uk. 10 s.d. 15x30 cm (1SP : 2PP)", "Unit": "Rp33,500.00", "Price": 33, "Source": "AHSP 2025"},
+    {"Category": "3.9.8.4 Pemasangan Lantai Keramik untuk Variasi/Border", "Item": "Pemasangan 1 m' plint keramik uk. 10 s.d. 15x40 cm (1SP : 2PP)", "Unit": "Rp34,600.00", "Price": 34, "Source": "AHSP 2025"},
+    {"Category": "3.9.8.4 Pemasangan Lantai Keramik untuk Variasi/Border", "Item": "Pemasangan 1 m' plint keramik uk. 10 s.d. 15x60 cm (1SP : 2PP)", "Unit": "Rp34,000.00", "Price": 34, "Source": "AHSP 2025"},
+    {"Category": "3.9.8.4 Pemasangan Lantai Keramik untuk Variasi/Border", "Item": "Pemasangan 1 m' Step Nosing Keramik 10cm x 60 cm (1SP:2PP)", "Unit": "Rp78,200.00", "Price": 78, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 lantai marmer uk. 100x100 cm", "Unit": "Rp1,145,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 lantai karpet", "Unit": "Rp143,500.00", "Price": 143, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 underlayer (pelapis bawah karpet)", "Unit": "Rp84,600.00", "Price": 84, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 lantai parquet kayu solid", "Unit": "Rp547,800.00", "Price": 547, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 lantai engineering wood", "Unit": "Rp424,700.00", "Price": 424, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m' plint kayu tebal 2 cm lebar 10 cm", "Unit": "Rp131,600.00", "Price": 131, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 lantai vinyl uk. 30x30 cm", "Unit": "Rp169,800.00", "Price": 169, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m' plint vinyl uk. 15x30 cm", "Unit": "Rp58,600.00", "Price": 58, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 floor hardener", "Unit": "Rp71,700.00", "Price": 71, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 lantai UPVC decking", "Unit": "Rp1,542,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemolesan 1 m2 lantai ubin teraso, granit, marmer", "Unit": "Rp97,300.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 Lantai Keramik Tactile Ukuran 30x30 cm ( 1SP:2PP)", "Unit": "Rp556,400.00", "Price": 556, "Source": "AHSP 2025"},
+    {"Category": "3.9.9 PENUTUP LANTAI LAINNYA", "Item": "Pemasangan 1 m2 Lantai Keramik Tactile Ukuran 40x40 cm ( 1SP:2PP)", "Unit": "Rp371,800.00", "Price": 371, "Source": "AHSP 2025"},
+    {"Category": "3.10.1 Dinding Keramik", "Item": "Pemasangan 1 m2 dinding keramik artistik uk. 10x20 cm (1SP : 2PP)", "Unit": "Rp365,000.00", "Price": 365, "Source": "AHSP 2025"},
+    {"Category": "3.10.1 Dinding Keramik", "Item": "Pemasangan 1 m2 dinding keramik artistik uk. 5x20 cm (1SP : 2PP)", "Unit": "Rp516,200.00", "Price": 516, "Source": "AHSP 2025"},
+    {"Category": "3.10.1 Dinding Keramik", "Item": "Pemasangan 1 m2 dinding keramik uk. 10x20 cm (1SP : 2PP)", "Unit": "Rp291,400.00", "Price": 291, "Source": "AHSP 2025"},
+    {"Category": "3.10.1 Dinding Keramik", "Item": "Pemasangan 1 m2 dinding keramik uk. 20x20 cm (1SP : 2PP)", "Unit": "Rp229,800.00", "Price": 229, "Source": "AHSP 2025"},
+    {"Category": "3.10.2 Dinding Homogeneous Tile", "Item": "Pemasangan 1 m2 dinding homogeneous tile Polish uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp566,500.00", "Price": 566, "Source": "AHSP 2025"},
+    {"Category": "3.10.2 Dinding Homogeneous Tile", "Item": "Pemasangan 1 m2 dinding homogeneous tile Polish uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp474,500.00", "Price": 474, "Source": "AHSP 2025"},
+    {"Category": "3.10.2 Dinding Homogeneous Tile", "Item": "Pemasangan 1 m2 dinding homogeneous tile polish uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp239,800.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "3.10.2 Dinding Homogeneous Tile", "Item": "Pemasangan 1 m2 dinding homogeneous tile Unpolish uk. 30x30 cm (1SP : 2PP)", "Unit": "Rp566,500.00", "Price": 566, "Source": "AHSP 2025"},
+    {"Category": "3.10.2 Dinding Homogeneous Tile", "Item": "Pemasangan 1 m2 dinding homogeneous tile Unpolish uk. 40x40 cm (1SP : 2PP)", "Unit": "Rp474,500.00", "Price": 474, "Source": "AHSP 2025"},
+    {"Category": "3.10.2 Dinding Homogeneous Tile", "Item": "Pemasangan 1 m2 dinding homogeneous tile Unpolish uk. 60x60 cm (1SP : 2PP)", "Unit": "Rp239,800.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "3.10.3 DINDING PORSELEN", "Item": "Pemasangan 1 m2 dinding porselen uk. 11x11 cm (1SP : 2PP)", "Unit": "Rp384,300.00", "Price": 384, "Source": "AHSP 2025"},
+    {"Category": "3.10.3 DINDING PORSELEN", "Item": "Pemasangan 1 m2 dinding porselen uk. 10x20 cm (1SP : 2PP)", "Unit": "Rp398,200.00", "Price": 398, "Source": "AHSP 2025"},
+    {"Category": "3.10.3 DINDING PORSELEN", "Item": "Pemasangan 1 m2 dinding porselen uk. 20x20 cm (1SP : 2PP)", "Unit": "Rp220,300.00", "Price": 220, "Source": "AHSP 2025"},
+    {"Category": "3.10.4 DINDING BATU ALAM", "Item": "Pemasangan 1 m2 dinding bata pelapis uk. 3x7x24 cm", "Unit": "Rp489,000.00", "Price": 489, "Source": "AHSP 2025"},
+    {"Category": "3.10.4 DINDING BATU ALAM", "Item": "Pemasangan 1 m2 dinding batu paras", "Unit": "Rp366,800.00", "Price": 366, "Source": "AHSP 2025"},
+    {"Category": "3.10.4 DINDING BATU ALAM", "Item": "Pemasangan 1 m2 dinding batu tempel hitam", "Unit": "Rp362,700.00", "Price": 362, "Source": "AHSP 2025"},
+    {"Category": "3.10.5 PENUTUP DINDING LAINNYA", "Item": "Pemasangan 1 m2 wallpaper lebar 50 cm", "Unit": "Rp140,700.00", "Price": 140, "Source": "AHSP 2025"},
+    {"Category": "3.10.5 PENUTUP DINDING LAINNYA", "Item": "Pemasangan 1 m2 dinding pemisah plywood rangkap, rangka kayu kelas II", "Unit": "Rp572,100.00", "Price": 572, "Source": "AHSP 2025"},
+    {"Category": "3.10.5 PENUTUP DINDING LAINNYA", "Item": "Pemasangan 1 m2 dinding lambisering dari papan kayu kelas I", "Unit": "Rp686,000.00", "Price": 686, "Source": "AHSP 2025"},
+    {"Category": "3.10.5 PENUTUP DINDING LAINNYA", "Item": "Pemasangan 1 m2 dinding lambrisering dari plywood (Kayu Lapis) ukuran 120x240cm", "Unit": "Rp2,827,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "3.10.5 PENUTUP DINDING LAINNYA", "Item": "Pemasangan 1 m2 dinding bilik, rangka kayu kelas III atau IV", "Unit": "Rp134,800.00", "Price": 134, "Source": "AHSP 2025"},
+    {"Category": "3.10.5 PENUTUP DINDING LAINNYA", "Item": "Pemasangan kering 1 m2 dinding marmer 100x100 cm tebal 2 cm", "Unit": "Rp1,650,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.10.5 PENUTUP DINDING LAINNYA", "Item": "Pemasangan basah 1 m2 dinding marmer 100x100 cm tebal 2 cm", "Unit": "Rp1,426,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.10.6 RANGKA DINDING", "Item": "Pemasangan 1 m2 rangka besi hollow galvanis 40x40 mm, modul 60x120 cm, untuk partisi", "Unit": "Rp77,000.00", "Price": 77, "Source": "AHSP 2025"},
+    {"Category": "3.10.6 RANGKA DINDING", "Item": "Pemasangan 1 m2 rangka dinding pemisah 60x120 cm kayu kelas II atau III", "Unit": "Rp731,300.00", "Price": 731, "Source": "AHSP 2025"},
+    {"Category": "3.10.6 RANGKA DINDING", "Item": "Pemasangan 1 m2 Rangka Besi Hollow Galvanis 20x40 mm", "Unit": "Rp100,300.00", "Price": 100, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 m2 rolling door besi", "Unit": "Rp595,000.00", "Price": 595, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 m2 rolling door alumunium", "Unit": "Rp686,800.00", "Price": 686, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 m2 pintu lipat PVC", "Unit": "Rp845,800.00", "Price": 845, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 m2 pintu aluminium strip lebar 8 cm", "Unit": "Rp1,463,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 m2 pintu kaca Tebal 6 mm rangka aluminium", "Unit": "Rp248,200.00", "Price": 248, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 m2 jendela kacaTebal 6 mm  rangka aluminium", "Unit": "Rp248,200.00", "Price": 248, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan dan pemasangan 1 m2 pintu klamp standar, kayu kelas II", "Unit": "Rp772,500.00", "Price": 772, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan dan pemasangan 1 m2 pintu klamp sederhana, kayu kelas III", "Unit": "Rp632,400.00", "Price": 632, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan 1 m2 pintu dan jendela kaca, kayu kelas I atau II", "Unit": "Rp530,500.00", "Price": 530, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan 1 m2 pintu dan jendela jalusi, kayu kelas I atau II", "Unit": "Rp1,792,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan 1 m2 daun pintu panel, kayu kelas I atau II", "Unit": "Rp1,423,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan 1 m2 daun pintu plywood rangkap, rangka kayu kelas II tertutup (lebar s.d. 90 cm)", "Unit": "Rp1,035,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan 1 m2 daun pintu plywood rangkap, rangka expose kayu kelas I atau II", "Unit": "Rp1,115,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan dan pemasangan 1 buah pintu panel kayu lapis timbal di tengah (khusus RS/Laboratorium/R.Radiologi)", "Unit": "Rp12,045,300.00", "Price": 12, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pembuatan dan pemasangan 1 m2 pintu besi pelat baja tebal 2 mm rangkap, rangka baja siku", "Unit": "Rp1,484,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 buah pintu besi tahan api", "Unit": "Rp9,380,600.00", "Price": 9, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 m2 pintu engineering wood", "Unit": "Rp1,588,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 buah Pintu uPVC lebar 80 cm lengkap dengan aksesoris", "Unit": "Rp1,209,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.1 Pintu", "Item": "Pemasangan 1 buah Pintu uPVC lebar 70 cm lengkap dengan aksesoris", "Unit": "Rp864,600.00", "Price": 864, "Source": "AHSP 2025"},
+    {"Category": "3.11.2 JENDELA", "Item": "Pemasangan 1 m2 Jendela Kaca Tebal 5 mm Nako Aluminium", "Unit": "Rp384,200.00", "Price": 384, "Source": "AHSP 2025"},
+    {"Category": "3.11.2 JENDELA", "Item": "Pemasangan 1 m2 jendela Kaca Tebal 5 mm nako dan tralis", "Unit": "Rp422,700.00", "Price": 422, "Source": "AHSP 2025"},
+    {"Category": "3.11.2 JENDELA", "Item": "Pemasangan 1 buah Jendela Kaca Upvc 1 daun ukuran 0,79 x 1,30 m", "Unit": "Rp2,230,500.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pemasangan 1 m' kusen aluminium", "Unit": "Rp178,700.00", "Price": 178, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pembuatan dan pemasangan 1 mâ kusen pintu dan kusen jendela, kayu kelas I uk. 6x12 cm", "Unit": "Rp329,400.00", "Price": 329, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pembuatan dan pemasangan 1 mâ kusen pintu dan kusen jendela, kayu kelas I uk. 6x15 cm", "Unit": "Rp389,900.00", "Price": 389, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pembuatan dan pemasangan 1 mâ kusen pintu dan kusen jendela, kayu kelas II atau III uk. 6x12 cm", "Unit": "Rp205,900.00", "Price": 205, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pembuatan dan pemasangan 1 mâ kusen pintu dan kusen jendela, kayu kelas II atau III uk. 6x15 cm", "Unit": "Rp234,900.00", "Price": 234, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pembuatan dan pemasangan 1 m2 jalusi kusen, kayu kelas I atau II", "Unit": "Rp1,459,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pemasangan 1 buah Jalusi Upvc", "Unit": "Rp75,200.00", "Price": 75, "Source": "AHSP 2025"},
+    {"Category": "3.11.3 Kusen Pintu dan Jendela", "Item": "Pemasangan 1 buah Kusen Bovenlight uPVC", "Unit": "Rp317,700.00", "Price": 317, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah kunci tanam antik", "Unit": "Rp296,700.00", "Price": 296, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah kunci tanam biasa", "Unit": "Rp181,300.00", "Price": 181, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah kunci tanam kamar mandi", "Unit": "Rp159,700.00", "Price": 159, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah kunci tanam silinder", "Unit": "Rp185,100.00", "Price": 185, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah engsel pintu", "Unit": "Rp69,100.00", "Price": 69, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah engsel tanam (floor hinge)", "Unit": "Rp666,600.00", "Price": 666, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah Door Closer", "Unit": "Rp299,300.00", "Price": 299, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah Door Holder", "Unit": "Rp204,200.00", "Price": 204, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah Door Stop", "Unit": "Rp87,200.00", "Price": 87, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah Rel Pintu Dorong", "Unit": "Rp405,400.00", "Price": 405, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah Venetions Blinds dan Vertical Blinds", "Unit": "Rp283,000.00", "Price": 283, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 m2 Teralis Besi Strip", "Unit": "Rp205,900.00", "Price": 205, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 m2 Kawat Nyamuk Rangka Besi", "Unit": "Rp209,100.00", "Price": 209, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 m2 Kawat Nyamuk Rangka Kayu Kelas II", "Unit": "Rp111,200.00", "Price": 111, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 Buah Kunci Slot (Grendel) untuk Jedela", "Unit": "Rp62,500.00", "Price": 62, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah engsel jendela kupu-kupu", "Unit": "Rp68,800.00", "Price": 68, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah engsel angin", "Unit": "Rp88,400.00", "Price": 88, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah spring knip (kunci slot) untuk jendela", "Unit": "Rp58,200.00", "Price": 58, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah kait angin", "Unit": "Rp47,700.00", "Price": 47, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah kunci lemari", "Unit": "Rp71,400.00", "Price": 71, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah grendel", "Unit": "Rp51,000.00", "Price": 51, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah grendel tanam", "Unit": "Rp216,700.00", "Price": 216, "Source": "AHSP 2025"},
+    {"Category": "3.11.4 AKSESORIS PINTU DA JENDELA", "Item": "Pemasangan 1 buah Handle Jendela", "Unit": "Rp77,600.00", "Price": 77, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 sunscreen alumunium", "Unit": "Rp604,100.00", "Price": 604, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca polos tebal 3 mm", "Unit": "Rp181,500.00", "Price": 181, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca polos tebal 5 mm", "Unit": "Rp275,900.00", "Price": 275, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca polos tebal 6 mm", "Unit": "Rp325,300.00", "Price": 325, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca polos tebal 8 mm", "Unit": "Rp315,600.00", "Price": 315, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca buram tebal 12 mm", "Unit": "Rp443,600.00", "Price": 443, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca cermin tebal 5 mm", "Unit": "Rp268,900.00", "Price": 268, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca cermin tebal 8 mm", "Unit": "Rp1,002,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca wireglass tebal 5 mm", "Unit": "Rp209,700.00", "Price": 209, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca patri tebal 5 mm", "Unit": "Rp1,880,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca laminated tebal 16 mm (8 mm double)", "Unit": "Rp1,687,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca laminated tebal 16 mm (8 mm double) dengan aluminium frame", "Unit": "Rp1,874,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca tempered tebal 12 mm", "Unit": "Rp783,400.00", "Price": 783, "Source": "AHSP 2025"},
+    {"Category": "3.12 PEKERJAAN KACA", "Item": "Pemasangan 1 m2 kaca laminated tebal 12 mm dengan aluminium frame", "Unit": "Rp1,346,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.13 PEKERJAAN BESI DAN ALUMINIUM", "Item": "Pemasangan 1 mâ Shalimar Aluminium", "Unit": "Rp91,900.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "3.13 PEKERJAAN BESI DAN ALUMINIUM", "Item": "Pemasangan 1 m2 profil jalusi aluminium", "Unit": "Rp743,600.00", "Price": 743, "Source": "AHSP 2025"},
+    {"Category": "3.13 PEKERJAAN BESI DAN ALUMINIUM", "Item": "Pengelasan 1 mâ dengan las listrik", "Unit": "Rp18,000.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "3.13 PEKERJAAN BESI DAN ALUMINIUM", "Item": "Pembuatan dan pemasangan 1 m' railing besi pengaman tinggi 1.2 m", "Unit": "Rp515,000.00", "Price": 515, "Source": "AHSP 2025"},
+    {"Category": "3.13 PEKERJAAN BESI DAN ALUMINIUM", "Item": "Pembuatan dan pemasangan 1 m' railing tangga/ramp dan hand rail tinggi 0.85 m dan 0.65 m", "Unit": "Rp312,900.00", "Price": 312, "Source": "AHSP 2025"},
+    {"Category": "3.13 PEKERJAAN BESI DAN ALUMINIUM", "Item": "Pemasangan 1 buah Tangga Service tinggi 4 meter", "Unit": "Rp2,056,500.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "3.14 PEKERJAAN KAYU", "Item": "Pembuatan 1 m2 Plywood Rangkap, Rangka Expose Kayu Kelas I", "Unit": "Rp958,900.00", "Price": 958, "Source": "AHSP 2025"},
+    {"Category": "3.14 PEKERJAAN KAYU", "Item": "Pembuatan 1 m2 Plywood Lapis Formika, Rangka Expose Kayu Kelas Ii", "Unit": "Rp731,400.00", "Price": 731, "Source": "AHSP 2025"},
+    {"Category": "3.15 PEKEJAAN MONUMEN DAN ORNAMEN", "Item": "Pemasangan 1 buah jendela ornamen GRC", "Unit": "Rp747,800.00", "Price": 747, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan 1 buah Logo PU plat besi finish cat uk. 80x80 cm dengan scaffolding", "Unit": "Rp1,048,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan Logo PU Pelat Besi Finish Cat ukuran 80x80 cm dengan gendola", "Unit": "Rp22,543,200.00", "Price": 22, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan Signage Plat Baja Menggunakan Tiang", "Unit": "Rp1,754,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan Signage Plat Baja pada Dinding", "Unit": "Rp1,686,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan Signage dengan Acrylic", "Unit": "Rp171,700.00", "Price": 171, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan 1 m2 signage dengan cutting", "Unit": "Rp127,700.00", "Price": 127, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan 1 m2 Marka dengan Cat Thermoplast", "Unit": "Rp142,200.00", "Price": 142, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan 1 buah Logo PU Akrilik ukuran 40x40 cm", "Unit": "Rp459,300.00", "Price": 459, "Source": "AHSP 2025"},
+    {"Category": "3.16.1 Pemasangan Logo PU", "Item": "Pemasangan 1 buah Nomor Rumah Akrilik ukuran 15x30 cm", "Unit": "Rp79,800.00", "Price": 79, "Source": "AHSP 2025"},
+    {"Category": "3.18.1 WESTAFEL", "Item": "Pemasangan 1 buah wastafel", "Unit": "Rp704,700.00", "Price": 704, "Source": "AHSP 2025"},
+    {"Category": "3.18.2 KITCHEN SINK", "Item": "Pemasangan 1 buah Bak Cuci Piring Stainlessteel", "Unit": "Rp676,700.00", "Price": 676, "Source": "AHSP 2025"},
+    {"Category": "3.18.2 KITCHEN SINK", "Item": "Pemasangan 1 Buah Bak Cuci Piring Teraso", "Unit": "Rp1,177,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.18.3 KLOSET", "Item": "Pemasangan 1 buah closet duduk/monoblock", "Unit": "Rp2,071,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "3.18.3 KLOSET", "Item": "Pemasangan 1 buah closet jongkok", "Unit": "Rp465,100.00", "Price": 465, "Source": "AHSP 2025"},
+    {"Category": "3.18.3 KLOSET", "Item": "Pemasangan 1 m2 kubikel toilet", "Unit": "Rp2,285,500.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "3.18.4 URINOIR", "Item": "Pemasangan 1 buah urinoir", "Unit": "Rp885,400.00", "Price": 885, "Source": "AHSP 2025"},
+    {"Category": "3.18.4 URINOIR", "Item": "Pemasangan 1 buah partisi urinoir", "Unit": "Rp1,061,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.18.5 BAK AIR", "Item": "Pemasangan 1 buah bak mandi teraso vol. 0,3 m3", "Unit": "Rp1,983,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "3.18.5 BAK AIR", "Item": "Pemasangan 1 buah bak mandi pasangan bata vol. 0,3 m3", "Unit": "Rp2,394,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "3.18.5 BAK AIR", "Item": "Pemasangan 1 buah bak fiberglass vol. 0,3 m3", "Unit": "Rp665,900.00", "Price": 665, "Source": "AHSP 2025"},
+    {"Category": "3.18.5 BAK AIR", "Item": "Pemasangan 1 buah bak fiberglass vol. 1 m3", "Unit": "Rp744,800.00", "Price": 744, "Source": "AHSP 2025"},
+    {"Category": "3.18.5 BAK AIR", "Item": "Pemasangan 1 buah bak beton vol. 1 m3", "Unit": "Rp8,733,700.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "3.18.5 BAK AIR", "Item": "Pemasangan 1 buah bathup", "Unit": "Rp2,987,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "3.18.6 AKSESORIS SANITAIR", "Item": "Pemasangan 1 buah floor drain stainless steel", "Unit": "Rp72,100.00", "Price": 72, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah kran diameter Â½\" atau 3/4\"", "Unit": "Rp133,400.00", "Price": 133, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah jet washer", "Unit": "Rp197,500.00", "Price": 197, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah gantungan baju (robe hook)", "Unit": "Rp100,000.00", "Price": 100, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah towel bar", "Unit": "Rp188,000.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah grab bar", "Unit": "Rp155,000.00", "Price": 155, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah soap holder", "Unit": "Rp188,000.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah tissue holder", "Unit": "Rp188,000.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "3.18.6.2 Pemasanga 1 Buah Kran", "Item": "Pemasangan 1 buah Shower Set", "Unit": "Rp87,500.00", "Price": 87, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.2 Analisis Produktivitas Truck Angkutan Pohon Kecil di Polybag 20 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Kecil di Polybag 20 Liter", "Unit": "Rp394,307.00", "Price": 394, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.4 Analisis Produktivitas Truck Angkut Pohon Kecil di Polybag 25 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Kecil di Polybag 25 Liter", "Unit": "Rp452,932.00", "Price": 452, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.6 Analisis Produktivitas Truck Angkutan Pohon Sedang di Polybag 50 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Sedang di Polybag 50 Liter", "Unit": "Rp563,620.00", "Price": 563, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.8 Analisis Poduktivitas Truck Angkutan Pohon Sedang di Polybag 75 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Sedang di Polybag 75 Liter", "Unit": "Rp600,715.00", "Price": 600, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.10 Analisis Poduktivitas Truck Angkutan Pohon Sedang di Polybag 100 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Besar di Polybag 100 Liter", "Unit": "Rp597,755.00", "Price": 597, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.12 Analisis Poduktivitas Truck Angkutan Pohon Sedang di Polybag 150 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Besar di Polybag 150 Liter", "Unit": "Rp634,036.00", "Price": 634, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.14 Analisis Poduktivitas Truck Angkutan Pohon Sedang di Polybag 200 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Besar di Polybag 200 Liter", "Unit": "Rp841,445.00", "Price": 841, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.16 Analisis Poduktivitas Truck Angkutan Pohon Sedang di Polybag 250 Liter", "Item": "Pengadaan dan Pengangkutan Pohon Besar di Polybag 250 Liter", "Unit": "Rp970,792.00", "Price": 970, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.18 Analisis Poduktivitas Truck Angkutan Semak di Polybag 5 Liter Liter", "Item": "Pengadaan dan Pengangkutan Semak di Polybag 5 Liter", "Unit": "Rp14,646.00", "Price": 14, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.20 Analisis Poduktivitas Truck Angkutan Semak di Polybag 11 Liter", "Item": "Pengadaan dan Pengangkutan Semak di Polybag 11 Liter", "Unit": "Rp21,421.00", "Price": 21, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.22 Analisis Poduktivitas Truck Angkutan Semak di Polybag 20 Liter", "Item": "Pengadaan dan Pengangkutan Semak di Polybag 20 Liter", "Unit": "Rp36,117.00", "Price": 36, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.24 Analisis Poduktivitas Truck Angkutan Penutup Tanah", "Item": "Pengadaan dan Pengangkutan Penutup Tanah", "Unit": "Rp8,840.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "4.1.1.26 Analisis Poduktivitas Truck Angkutan Rumput", "Item": "Pengadaan dan Pengangkutan Rumput", "Unit": "Rp28,683.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Bungan Mentega (Natrium Oleander ) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp170,800.00", "Price": 170, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Bunga Terompet Kuning (Tecoma Stans) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp170,800.00", "Price": 170, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Bungur Sakura / Bungur Jepang (Lagerstromia indica) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp188,200.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Cassia Glauca / Hujan Emas (Sena Surttensis) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp193,900.00", "Price": 193, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Dracaena ' song of india' (Dracaena Reflexa \"sog of india) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp205,500.00", "Price": 205, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Dracaena 'Song of Jamaica'\n(Dracaena Reflexa \"Song of Jamaica\") Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp211,300.00", "Price": 211, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Jarak Batavia (Jatropha\nIntegerrima) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp217,000.00", "Price": 217, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Kayu Putih Kuning (Melaleuca Revolution Gold) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp222,800.00", "Price": 222, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Bugenvil/Bunga Kertas (Bougainvillea sp.) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp228,600.00", "Price": 228, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Penda Merah (Xanthostemon\nYoungii) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp234,400.00", "Price": 234, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Pucuk Merah (Syzygium\nMyrtifolium) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp419,200.00", "Price": 419, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Sikat Botol (Callistemon\nViminalis) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp188,200.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Thevetia (Thevetia Peruviana) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp211,300.00", "Price": 211, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Turi (Sesbania Grandiflora) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp222,800.00", "Price": 222, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Kembang Merak (Caesalpinia Pulcherrima)Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp257,500.00", "Price": 257, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Pandan Bali (Cordyline\nAustralis) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp245,900.00", "Price": 245, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.1 Pohon Kecil , Polibag 20 L", "Item": "Penanaman 1 Buah Pohon Kecil Yucca (Yucca sp.) Diameter 1-2 cm, Tinggi 2-2,5 Meter, Polibag 20 L", "Unit": "Rp234,400.00", "Price": 234, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Bugan Mentega (Natrium Oleande) Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp192,364.00", "Price": 192, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Bunga Terompet Kuning (Tecoma stans) Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp192,364.00", "Price": 192, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Bunga Terompet Kuning (Tecoma stans)Bungur Sakura/Bungur Jepang\n(Lagerstroemia indica), Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp221,239.00", "Price": 221, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon KecilCassia Glauca (Senna\nSurattensis), Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp215,464.00", "Price": 215, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Dracaena âSong of Indiaâ (Dracaena reflexa \"song of india\"), Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp227,014.00", "Price": 227, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Dracaena 'Song of Jamaica' (Dracaena reflexa \"song of jamaica\"), Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp238,564.00", "Price": 238, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Jarak Batavia (Jatropha Integerrima), Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp238,564.00", "Price": 238, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Kayu Putih Kuning (Melaleuca Revolution Gold),  Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp238,564.00", "Price": 238, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Pucuk Merah (Syzygium Myrtifolium), Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp250,114.00", "Price": 250, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Sikat Botol (Callistemon\nViminalis),  Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp209,689.00", "Price": 209, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Kecil Thevetia (Thevetia peruviana),  Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp238,564.00", "Price": 238, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Turi (Sesbania Grandiflora),  Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp238,564.00", "Price": 238, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.2 Poho Kecil, Polybag 25 L", "Item": "Penanaman 1 Buah Pohon Kecil Turi (Sesbania Grandiflora),  Diameter 2-3 cm, Tinggi 2-2,5 meter, Polybag 25 L", "Unit": "Rp238,564.00", "Price": 238, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Bintaro (Cerbera Manghas), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp302,102.00", "Price": 302, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Bunga Kupu-Kupu (Bauhinia Blakeana/Purpurea),, Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp625,502.00", "Price": 625, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Bunga Terompet Kuning (Tecoma stans), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp279,002.00", "Price": 279, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Bunga Flamboyan (Delonix Regia), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp290,552.00", "Price": 290, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Flamboyan Kuning (Peltophorum Pterocarpum), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp290,552.00", "Price": 290, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Janda Merana (Salix Babilonica), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp302,102.00", "Price": 302, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Ketapang kencana (Terminalia mantaly), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp307,877.00", "Price": 307, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Sosis (Kigelia Africana), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp307,877.00", "Price": 307, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Tabebuya (Tabebuia sp.) Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp307,877.00", "Price": 307, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Waru (Hibiscus Tiliaceus), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp307,877.00", "Price": 307, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.3 Pohon Sedang, Polybag 50 L", "Item": "Penanaman 1 Buah Pohon Sedang Waru (Hibiscus Tiliaceus), Diameter 3-5 cm, Tinggi 3-4 Meter, Polybag 50 L", "Unit": "Rp307,877.00", "Price": 307, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Bitaro (Cerbera Manghas), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Biola Cantik (Ficus Lyrata), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Bunga Kupu-Kupu (Bauhinia Blakeana/Purpurea), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp678,685.00", "Price": 678, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Bungur (Lagerstroemia Speciosa),  Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Flamboyan (Delonix Regia),  Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Flamboyan Kuning (Peltophorum Pterocarpum),  Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho SedangJanda Merana (Salix Babilonica), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Kamboja (Plumeria Sp.), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Keben (Barringtonia Asiatica), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Kecrutan (Spathodea\nCampanulata), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Ketapang Kencana (Terminalia Mantaly), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp470,785.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Mahoni (Swietenia\nMahagoni), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp239,785.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Pulai (Alstonia Scholaris),, Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp239,785.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Putat (Planchonia Valida), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp239,785.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Sosis (Kigelia Africana), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp239,785.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Tabebuya (Tabebuia Sp.), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp239,785.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Trembesi (Samanea Saman), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp239,785.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.4 Pohon Sedang, Polybag 75 L", "Item": "Penanaman 1 Buah Poho Sedang Waru (Hibiscus Tiliaceus), Diameter 5-7 cm, Tinggi 3-4 Meter Polybag 75 L", "Unit": "Rp355,285.00", "Price": 355, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Pohon Beringi (Ficus Benjamine), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp577,317.00", "Price": 577, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Biola Cantik (Ficus Lyrata), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp721,692.00", "Price": 721, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Bodhi (Ficus Religiosa), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp606,192.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Bungur (Lagerstroemis Speciosa), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp721,692.00", "Price": 721, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Flamboyan (Delonix Regia), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp721,692.00", "Price": 721, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Kamboja (Plumeria Sp.), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp721,692.00", "Price": 721, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Keben (Barringtonia Asiatica), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp692,817.00", "Price": 692, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Kecrutan (Spathodea Campanulata), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp721,692.00", "Price": 721, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Ketapang Kencana (Terminalia Mantaly), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp721,692.00", "Price": 721, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Mahoni (Swietenia Mahagoni), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp750,567.00", "Price": 750, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Pulai (Alstonia Scholaris), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp606,192.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Putat (Planchonia Valida), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp606,192.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Sosis (Kigelia Africana), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp606,192.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.5 Pohon Besar, Polybag 100 L", "Item": "Penanaman 1 Buah Pohon Besar Trembesi (Samanea Saman), Diameter 7-15 cm, Tinggi diatas 5 meter, Polybag 100 L", "Unit": "Rp606,192.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Bodhi (Ficus Religiosa), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Beringin (Ficus Benjamina), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp825,654.00", "Price": 825, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Bodhi (Ficus Religiosa), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Flamboyan (Delonix Regia), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp970,029.00", "Price": 970, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Kamboja (Plumeria Sp.), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp970,029.00", "Price": 970, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Besar Pulai (Alstonia Scholaris), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Besar Sosis (Kigelia Africana), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.6 Pohon Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Pohon Besar Besar Trembesi (Samanea Saman), Diameter 15-20 cm, Tinggi diatas 5 meter, Polybag 150 L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.7 Pohon Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Pohon Besar Beringin (Ficus Benjamina), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,302,734.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.7 Pohon Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Pohon Besar Bodhi (Ficus Religiosa), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,042,859.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.7 Pohon Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Pohon Besar Flamboyan (Delonix Regia), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,158,359.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.7 Pohon Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Pohon Besar Kamboja Fosil (Plumeria Sp.), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,158,359.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.7 Pohon Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Pohon Besar Pulai (Alstonia Scholaris), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,042,859.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.7 Pohon Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Pohon Besar Sosis (Kigelia Africana), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,042,859.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.7 Pohon Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Pohon Besar Trembesi (Samanea Saman), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,042,859.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.8 Pohon Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Pohon Besar Baobab (Adansonia Digitata), Diameter 25-30 cm, Tinggi Diatas 6 meter, Polybag 250 L", "Unit": "Rp1,150,053.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.8 Pohon Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Pohon Besar Beringin (Ficus Benjamina), Diameter 25-30 cm, Tinggi Diatas 6 meter, Polybag 250 L", "Unit": "Rp1,092,303.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.8 Pohon Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Pohon Besar Bodhi (Ficus Religiosa), Diameter 25-30 cm, Tinggi Diatas 6 meter, Polybag 250 L", "Unit": "Rp1,150,053.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.8 Pohon Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Pohon Besar Kamboja Fosil (Plumeria Sp.), Diameter 25-30 cm, Tinggi Diatas 6 meter, Polybag 250 L", "Unit": "Rp1,150,053.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.8 Pohon Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Pohon Besar Pulai (Alstonia Scholaris), Diameter 25-30 cm, Tinggi Diatas 6 meter, Polybag 250 L", "Unit": "Rp1,150,053.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.8 Pohon Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Pohon Besar Sosis (Kigelia Africana), Diameter 25-30 cm, Tinggi Diatas 6 meter, Polybag 250 L", "Unit": "Rp1,150,053.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.2.8 Pohon Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Pohon Besar Trembesi (Samanea Saman), Diameter 25-30 cm, Tinggi Diatas 6 meter, Polybag 250 L", "Unit": "Rp1,150,053.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.1 Palem Kecil, Polybag 50 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Jepang (Ptychosperma Macarthurii), Diameter s.d 5 cm, Tinggi 1-1,2 meter, Polybag 50 L", "Unit": "Rp223,308.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.1 Palem Kecil, Polybag 50 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Komodoria/ Komodor/Chamadorea (Chamaedorea Elegans), Diameter s.d 5 cm, Tinggi 1-1,2 meter, Polybag 50 L", "Unit": "Rp223,308.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.1 Palem Kecil, Polybag 50 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Kuning (Dypsis\nLutescens), Diameter s.d 5 cm, Tinggi 1-1,2 meter, Polybag 50 L", "Unit": "Rp223,308.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.1 Palem Kecil, Polybag 50 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Merah/ Pinang Merah\n(Cyrtostachys Renda), Tinggi 1-1,2 meter, Polybag 50 L", "Unit": "Rp223,308.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.1 Palem Kecil, Polybag 50 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Waregu (Rhapis\nExcelsa), Tinggi 1-1,2 meter, Polybag 50 L", "Unit": "Rp223,308.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.1 Palem Kecil, Polybag 50 L", "Item": "Penaman 1 Buah Pelem Kecil, Sikas Halus/Mawar Jambe\n(Cycas Revoluta), Tinggi 1-1,2 meter, Polybag 50 L", "Unit": "Rp223,308.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.1 Palem Kecil, Polybag 50 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Phoenix (Phoenix\nRoebelenii), Tinggi 1-1,2 meter, Polybag 50 L", "Unit": "Rp223,308.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.2 Palem Kecil, Polybag 75 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Komodoria/ Komodor/Chamadorea (Chamaedorea Elegans), Diameter 5-7 cm, Tinggi 1,2 - 1,5 meter, Polybag 75 L", "Unit": "Rp297,825.00", "Price": 297, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.2 Palem Kecil, Polybag 75 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Kuning (Dypsis\nLutescens),  Diameter 5-7 cm, Tinggi 1,2 - 1,5 meter, Polybag 75 L", "Unit": "Rp297,825.00", "Price": 297, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.2 Palem Kecil, Polybag 75 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Merah/ Pinang Merah\n(Cyrtostachys Renda), Diameter Diameter 5-7 cm, Tinggi 1,2 - 1,5 meter, Polybag 75 L", "Unit": "Rp297,825.00", "Price": 297, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.2 Palem Kecil, Polybag 75 L", "Item": "Penaman 1 Buah Pelem Kecil, Palem Waregu (Rhapis Excelsa), Diameter Diameter 5-7 cm, Tinggi 1,2 - 1,5 meter, Polybag 75 L", "Unit": "Rp297,825.00", "Price": 297, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.2 Palem Kecil, Polybag 75 L", "Item": "Penaman 1 Buah Pelem Kecil,Sikas Halus/Mawar Jambe (Cycas Revoluta), Diameter Diameter 5-7 cm, Tinggi 1,2 - 1,5 meter, Polybag 75 L", "Unit": "Rp297,825.00", "Price": 297, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.2 Palem Kecil, Polybag 75 L", "Item": "Penaman 1 Buah Pelem Kecil,Palem Phoenix (Phoenix Roebelenii), Diameter Diameter 5-7 cm, Tinggi 1,2 - 1,5 meter, Polybag 75 L", "Unit": "Rp297,825.00", "Price": 297, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.3 Palem Besar, Polibag 100 L", "Item": "Penanaman 1 Buah Palem Besar, Palem Ekor Tupai (Wodyetia Bifucata), Diameter 7-15 cm, Tinggi 3-3,8 meter, Polybag 100 L", "Unit": "Rp709,757.00", "Price": 709, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.3 Palem Besar, Polibag 100 L", "Item": "Penanaman 1 Buah Palem Besar, Sylvertris (Phoenix Sylvertris), Diameter 7-15 cm, Diameter 7-15 cm, Tinggi 3-3,8 meter, Polybag 100 L", "Unit": "Rp709,757.00", "Price": 709, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.3 Palem Besar, Polibag 100 L", "Item": "Penanaman 1 Buah Palem Besar, Palem Putri (Veitchia Merillii), Diameter 7-15 cm, Diameter 7-15 cm, Tinggi 3-3,8 meter, Polybag 100 L", "Unit": "Rp652,007.00", "Price": 652, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.3 Palem Besar, Polibag 100 L", "Item": "Penanaman 1 Buah Palem Besar, alem Raja (Roystonea Regia), Diameter 7-15 cm, Diameter 7-15 cm, Tinggi 3-3,8 meter, Polybag 100 L", "Unit": "Rp709,757.00", "Price": 709, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.3 Palem Besar, Polibag 100 L", "Item": "Penanaman 1 Buah Palem Besar, Palem Sadeng (Saribus Rotundifolius), Diameter 7-15 cm, Diameter 7-15 cm, Tinggi 3-3,8 meter, Polybag 100 L", "Unit": "Rp709,757.00", "Price": 709, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.4 Palem Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Palem Besar,Palem Ekor Tupai (Wodyetia Bifurcata), Diameter 15 -20 cm, Tinggi 4 â 5 meter, Polybag\n150L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.4 Palem Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Palem Besar,Sylvertris (Phoenix Sylvertris),, Diameter 15 -20 cm, Tinggi 4 â 5 meter, Polybag\n150L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.4 Palem Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Palem Besar,Palem Putri (Veitchia Merillii), Diameter 15 -20 cm, Tinggi 4 â 5 meter, Polybag\n150L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.4 Palem Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Palem Besar, Palem Raja (Roystonea Regia), Diameter 15 -20 cm, Tinggi 4 â 5 meter, Polybag\n150L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.4 Palem Besar, Polybag 150 L", "Item": "Penanaman 1 Buah Palem Besar, Palem Sadeng (Saribus Rotundifolius) Diameter 15 -20 cm, Tinggi 4 â 5 meter, Polybag\n150L", "Unit": "Rp854,529.00", "Price": 854, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.5 Palem Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Palem Besar,Palem Ekor Tupai (Wodyetia Bifurcata), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag 200 L", "Unit": "Rp1,129,484.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.5 Palem Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Palem Besar,Sylvertris (Phoenix Sylvertris), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag\n200 L", "Unit": "Rp1,129,484.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.5 Palem Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Palem Besar,Palem Putri (Veitchia Merillii), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag\n200 L", "Unit": "Rp1,129,484.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.5 Palem Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Palem Besar,Palem Raja (Roystonea Regia), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag\n200 L", "Unit": "Rp1,129,484.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.5 Palem Besar, Polybag 200 L", "Item": "Penanaman 1 Buah Palem Besar,Palem Sadeng (Saribus Rotundifolius), Diameter 20-25 cm, Tinggi Diatas 5 meter, Polybag\n200 L", "Unit": "Rp1,129,484.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.6 Palem Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Palem Besar Palem Sadeng ( Saribus Rotundifolius), Diameter 25-30 cm, Tinggi Diatas 5 meter, Polybag 250 L", "Unit": "Rp1,265,553.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.6 Palem Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Palem Besar Palem Ekor Tupai (Wodyetia Bifurcata), Diameter 25-30 cm, Tinggi Diatas 5 meter, Polybag 250 L", "Unit": "Rp1,265,553.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.6 Palem Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Palem Besar, Sylvertris (Phoenix Sylvertris), Diameter 25-30 cm, Tinggi Diatas 5 meter, Polybag 250 L", "Unit": "Rp1,265,553.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.6 Palem Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Palem Besar, Palem Putri (Veitchia Merillii), Diameter 25-30 cm, Tinggi Diatas 5 meter, Polybag 250 L", "Unit": "Rp1,265,553.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.3.6 Palem Besar, Polybag 250 L", "Item": "Penanaman 1 Buah Palem Besar, Palem Raja (Roystonea Regia), Diameter 25-30 cm, Tinggi Diatas 5 meter, Polybag 250 L", "Unit": "Rp1,265,553.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak, Alamanda/Bunga Terompet Emas ( Allamanda Cathartica), 25 Buah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak,Bakung Lele (Hymenocalis Speciosa),\n36 Buah/m2,, Polybag 5 L", "Unit": "Rp110,840.00", "Price": 110, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak,Bunga Iris (Neomarica Longifolia), 36\nBuah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak,Calathea (Calathea Sp.), 16 Buah/m2, 36\nBuah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak,Cendrawasih (Phyllanthus Myrtifolius),\n36 Buah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 SemakHujan Mas (Galphimia Glauca), 25\nBuah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak, Kacapiring Wangi/Gardenia (Gardenia\nJasminoides), 25 Buah/m2 Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak,Kemuning (Murraya Paniculata), 25\nBuah/m2, 25 Buah/m2 Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak Melati Putih (Jasminum Sambac), 25\nBuah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak, Pandan Kuning (Pandanus\nPygmaeus), 25 Buah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak, Pretty Pink (Breynia Disticha), 25\nBuah/m2, 25 Buah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak, Sansevieria/Lidah Mertua\n(Sansevieria Trifasciata), 25 Buah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak,Tabernae/Mondokaki\n(Tabernaemontana Divaricata ), 25 Buah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.1 Semak, Polybag 5 L", "Item": "Penanaman 1 m2 Semak,Walisongo/Umbrella Tree (Schefflera\nArboricola), 25 Buah/m2, Polybag 5 L", "Unit": "Rp97,090.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Agave/ Lidah Naga ( Agave Americana), 5 buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Alamanda/Bunga Terompet Emas\n(Allamanda Cathartica), 9 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Bakung Jawa (Crinum Asiaticum), 16\nBuah/m2,, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Bakung Lele (Hymenocalis Speciosa),\n16 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Bromelia (Bromelia Sp.), 5 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak,Bunga Terompet Kuning (Tecoma\nStans), 9 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Costus (Costus Woodsonii), 16\nBuah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Dracaena âSong Of Indiaâ (Dracaena\nReflexa \"Song Of India\"), 9 Buah/m2,  Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak,Dracaena 'Song Of Jamaica' (Dracaena\nReflexa \"Song Of Jamaica\"), 9 Buah/m2,  Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Helliconia (Heliconia Psittacorum),\n16 Buah/m2,, 9 Buah/m2,  Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Honje/Kecombrang (Etlingera\nElatior), 16 Buah/m2,  Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Hujan Mas (Galphimia Glauca), 16\nBuah/m2,  Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Kaca Piring (Gardenia Augusta), 16\nBuah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Kacapiring Wangi/Gardenia\n(Gardenia Jasminoides), 16 Buah/m2 Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Kana (Canna Indica), 16 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak,Lili Brazil (Dianella Tasmanica), 16\nBuah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak,Melati Putih (Jasminum Sambac), 16\nBuah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Nusa Indah (Mussaenda), 9 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Oleander/Bunga Mentega (Nerium\nOleander), 16 Buah/m2,, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Pretty Pink (Breynia Disticha), 16\nBuah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Puring (Codiaeum Variegatum), 16\nBuah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Ruelia / Kencana Ungu (Ruellia\nSimplex), 16 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Sansevieria/Lidah Mertua\n(Sansevieria Trifasciata), 16 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Soka (Ixora Coccinea), 16 Buah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak, Tabernae (Tabernaemontana Sp.), 16\nBuah/m2, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.2 Semak , Polybag 11 L", "Item": "Penanaman 1 m2 Semak,Walisongo/Umbrella Tree (Schefflera\nArboricola), 16 Buah/m2,, Polybag 11 L", "Unit": "Rp104,219.00", "Price": 104, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Agave/ Lidah Naga (Agave Americana), 23 Buah/m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Alamanda/Bunga Terompet Emas\n(Allamanda Cathartica), 5 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Bakung Jawa (Crinum Asiaticum), 12\nBuah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Bromelia (Bromelia Sp.), 3 Buah/ m2,, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Bugenvil/Bunga Kertas (Bougenvillea\nSp), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Bunga Terompet Kuning (Tecoma\nStans), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Canna (Canna Indica), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Dracaena âSong Of Indiaâ (Dracaena\nReflexa \"Song Of India\"), 12 Buah/ m2,  Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Dracaena 'Song Of Jamaica' (Dracaena\nReflexa \"Song Of Jamaica\"), 12 Buah/ m2,  Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Helliconia (Heliconia Psittacorum),\n12 Buah/ m2,,  Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Honje/Kecombrang (Etlingera\nElatior), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Hujan Mas (Galphimia Glauca), 12\nBuah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Kacapiring Wangi/Gardenia (Gardenia\nJasminoides), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Kembang Sepatu (Hibiscus Rosa-\nSinensis), 12 Buah/ m2,, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Oleander/Bunga Mentega (Nerium\nOleander), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Penda Emas (Xanthostemon\nChrysanthus), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak,Puring (Codiaeum Variegatum), 12\nBuah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 Semak, Tabernac (Tabernaemontana Sp. ), 12\nBuah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.4.3 Semak, Polybag 20 L", "Item": "Penanaman 1 m2 SemakWalisongo/Umbrella Tree (Schefflera\nArboricola), 12 Buah/ m2, Polybag 20 L", "Unit": "Rp107,344.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "4.1.5 Penanaman Penutup Tanah (Ground Cover)", "Item": "Penanaman 1 m2 Penutup Tanah, Kacang Hias (Arachis Pintoi) 50 Buah / m2, Polybag 0,5 L", "Unit": "Rp28,098.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "4.1.5 Penanaman Penutup Tanah (Ground Cover)", "Item": "Penanaman 1 m2 Penutup Tanah, Widelia (Wedelia Trilobata), 50\nBuah/ m2, Polybag 0,5 L", "Unit": "Rp28,098.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "4.1.5 Penanaman Penutup Tanah (Ground Cover)", "Item": "Penanaman 1 m2 Penutup Tanah, Sutra Bombay (Portulaca Sp.),\n50 Buah/ m2, Polybag 0,5 L", "Unit": "Rp28,098.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "4.1.5 Penanaman Penutup Tanah (Ground Cover)", "Item": "Penanaman 1 m2 Penutup Tanah, Lantana (Lantana Camara), 50\nBuah/ m2, Polybag 0,5 L", "Unit": "Rp28,098.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "4.1.5 Penanaman Penutup Tanah (Ground Cover)", "Item": "Penanaman 1 m2 Penutup Tanah,Kucai Mini (Ophiopogon\nJaponicus), 50 Buah/ m2, Polybag 0,5 L", "Unit": "Rp28,098.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "4.1.6 Penanaman Rumput", "Item": "Penanaman 1 m2 Rumput,Rumput Gajah (Pennisetum Purpureum)", "Unit": "Rp37,851.00", "Price": 37, "Source": "AHSP 2025"},
+    {"Category": "4.1.6 Penanaman Rumput", "Item": "Penanaman 1 m2 Rumput,Rumput Gajah Mini (Axonopus\nCompressus)", "Unit": "Rp43,351.00", "Price": 43, "Source": "AHSP 2025"},
+    {"Category": "4.1.6 Penanaman Rumput", "Item": "Penanaman 1 m2 Rumput,Rumput Peking (Agrostis Stolonifera)", "Unit": "Rp47,751.00", "Price": 47, "Source": "AHSP 2025"},
+    {"Category": "4.1.6 Penanaman Rumput", "Item": "Penanaman 1 m2 Rumput, Rumput Embun (Bothriochloa Pertusa)", "Unit": "Rp45,551.00", "Price": 45, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah 1:2 (13-26,5Â° ), Metode Hydroseeding per m2 permukaan lereng ( Menggunakan Jenis Biji Rumput)", "Unit": "Rp175.00", "Price": 17500, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah 1:2 (13Â°-26.5Â°), Metode Taplok per\nm2 Permukaan Lereng (Menggunakan Jenis Biji Rumput)", "Unit": "Rp154,392.00", "Price": 154, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah 1:1 (26.5Â°-45Â°), Metode Hydroseeding per m2 Permukaan Lereng (Menggunakan Jenis Biji\nRumput)", "Unit": "Rp179,493.00", "Price": 179, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah 1:1 (26.5Â°-45Â°), Metode Taplok per\nm2 Permukaan Lereng (Menggunakan Jenis Biji Rumput", "Unit": "Rp194,665.00", "Price": 194, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah dan/atau Kombinasi Tanah danBatuan 1:0.5 (45Â°-63Â°), Metode Hydroseeding per m2 Permukaan Lereng (Menggunakan Jenis Biji Rumput)", "Unit": "Rp222,334.00", "Price": 222, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah dan/atau Kombinasi Tanah dan Batuan 1:0.5 (45Â°-63Â°), Metode Taplok per m2 Permukaan Lereng (Menggunakan Jenis Biji Rumput", "Unit": "Rp287,811.00", "Price": 287, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah 1:2 (13Â°-26.5Â°), Metode Hydroseeding per m2 Permukaan Lereng (Menggunakan Jenis Biji\nLegume Crop Cover/LCC)", "Unit": "Rp139,793.00", "Price": 139, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah 1:2 (13Â°-26.5Â°), Metode Taplok per m2 Permukaan Lereng (Menggunakan Jenis Biji Legume Crop Cover/LCC)", "Unit": "Rp156,251.00", "Price": 156, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah 1:1 (26.5Â°-45Â°), Metode Hydroseeding per m2 Permukaan Lereng (Menggunakan Jenis Biji\nLegume Crop Cover/LCC)", "Unit": "Rp181,352.00", "Price": 181, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman Pada Lereng Tanah 1:1 (26.5Â°-45Â°), Metode Taplok per m2 Permukaan Lereng (Menggunakan Jenis Biji Legume Crop Cover/LCC)", "Unit": "Rp196,524.00", "Price": 196, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah dan/atau Kombinasi Tanah dan Batuan 1:0.5 (45Â°-63Â°), Metode Hydroseeding per m2 Permukaan Lereng (Menggunakan Jenis Biji Legume Crop Cover/LCC)", "Unit": "Rp223,326.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "4.1.7 Penanaman pada Lahan Miring/Kelerengan", "Item": "Penanaman pada Lereng Tanah dan/atau Kombinasi Tanah dan Batuan 1:0.5 (45Â°-63Â°), Metode Taplok per m2 Permukaan Lereng (Menggunakan Jenis Biji Legume Crop Cover/LCC)", "Unit": "Rp289,670.00", "Price": 289, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH 4,50-5,50 dan bertekstur Pasir 60,01%-100,00% atau tanah sandy per m3", "Unit": "Rp92,565.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH 4.50-5.50 dan Bertekstur Liat 40.01% -\n60.00% atau Tanah Sandy Loam per m3", "Unit": "Rp92,565.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH 4.50-5.50 dan Bertekstur Liat 60.01% -\n100.00% atau Tanah Loam To Clay Loam per m3", "Unit": "Rp134,838.00", "Price": 134, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH 3.50-4.49 dan Bertekstur Liat 60.01% -\n100.00% atau Tanah Sandy per m3", "Unit": "Rp93,247.00", "Price": 93, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH 3.50-4.49 dan Bertekstur Liat 40.01% -\n60.00% atau Tanah Sandy Loam per m3", "Unit": "Rp93,522.00", "Price": 93, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH 3.50-4.49 dan Bertekstur Liat 60.01% -\n100.00% atau Tanah Loam To Clay Loam per m3", "Unit": "Rp136,202.00", "Price": 136, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH >7.5 per m3", "Unit": "Rp92,945.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH >7.5 dan Bertekstur Pasir 60.01% -\n100.00% atau Tanah Sandy per m3", "Unit": "Rp93,522.00", "Price": 93, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH >7.5 dan Bertekstur Liat 40.01% -\n60.00% atau Tanah Sandy Loam per m3", "Unit": "Rp92,945.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "4.1.8.1 Cara Perhitungan AHSP Pengelolaan Tanah Tidak Subur", "Item": "Pengolahan Tanah berPH >7.5 dan Bertekstur Liat 60.01% -\n100.00% atau Tanah Loam To Clay Loam per m3", "Unit": "Rp134,772.00", "Price": 134, "Source": "AHSP 2025"},
+    {"Category": "4.1.9 Pengolahan Tanah Bertekstur Tidak Subur", "Item": "Pengolahan Tanah bertekstur  liat  40,01%-60,00% atau tanah Sandy per m3", "Unit": "Rp90,965.00", "Price": 90, "Source": "AHSP 2025"},
+    {"Category": "4.1.9 Pengolahan Tanah Bertekstur Tidak Subur", "Item": "Pengolahan Tanah bertekstur  liat  60,01%-100,00% atau tanah Sandy Loam per m3", "Unit": "Rp132,792.00", "Price": 132, "Source": "AHSP 2025"},
+    {"Category": "4.1.9 Pengolahan Tanah Bertekstur Tidak Subur", "Item": "Pengolahan Tanah bertekstur  liat  60,01%-100,00% atau tanah Loam to Clay Loam per m3", "Unit": "Rp91,542.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "4.1.10 Penyiraman Pada Tanah Datar (Lahan Subur)", "Item": "Peyiraman untuk 1 hari ( dengan selang plastik 3/4 ich) untuk 1 buah pohon/palem", "Unit": "Rp3,421.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.1.10 Penyiraman Pada Tanah Datar (Lahan Subur)", "Item": "Peyiraman untuk 1 m2 Semak/Penutup tanah untuk 1 hari ( dengan selang plastik 3/4 ich)", "Unit": "Rp1,881.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.10 Penyiraman Pada Tanah Datar (Lahan Subur)", "Item": "Peyiraman untuk 1 m2 Rumput untuk 1 hari ( dengan selang plastik 3/4 ich)", "Unit": "Rp2,570.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "4.1.10 Penyiraman Pada Tanah Datar (Lahan Subur)", "Item": "Peyiraman untuk 1 m2 Semak/Penutup Tanah  untuk 1 hari ( dengan Sprinkler) *Sistem Sprinkler tersedia", "Unit": "Rp1,860.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.1.10 Penyiraman Pada Tanah Datar (Lahan Subur)", "Item": "Peyiraman untuk 1 m2 Rumput untuk 1 hari ( dengan Sprinkler) *Sistem Sprinkler tersedia", "Unit": "Rp2,465.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 hari (dengan Selang Plastik 3/4 inch) untuk 1 buah pohon/palem di tanah tidak subur di lahan datar dan tidak memiliki jaringa air yang baik", "Unit": "Rp7,299.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Selang Plastik 3/4 inch) untuk1 m2 Semak/Penutup Tanah di Tanah Tidak Subur di Lahan Datar dan Tidak Memiliki Jaringan Air Yang Baik", "Unit": "Rp4,589.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Selang Plastik 3/4 inch) untuk 1 m2 Rumput di Tanah Tidak Subur di Lahan Datar dan Tidak Memiliki Jaringan Air Yang Baik", "Unit": "Rp5,799.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Selang Plastik 3/4 inch) untuk 1 m2 Rumput di Tanah Tidak Subur di Lahan Datar dan Tidak Memiliki Jaringan Air Yang Baik", "Unit": "Rp4,527.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Sprinkler*) untuk 1 m2 Rumput di Tanah Tidak Subur di Lahan Datar dan Tidak Memiliki Jaringan Air Yang Baik", "Unit": "Rp5,737.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Selang Plastik 3/4 inch) untuk 1 Buah Pohon/Palem di Tanah Tidak Subur di Lahan Datar dan Memiliki Jaringan Air Yang Baik", "Unit": "Rp7,299.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Selang Plastik 3/4 inch) untuk1 m2 Semak/Penutup Tanah di Tanah Tidak Subur di Lahan Datar dan Memiliki Jaringan Air Yang Baik", "Unit": "Rp3,736.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Selang Plastik 3/4 inch) untuk1 m2 Rumput di Tanah Tidak Subur di Lahan Datar dan Memiliki Jaringan Air Yang Baik", "Unit": "Rp4,946.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Sprinkler*) untuk 1 m2 Semak/Penutup Tanah di Tanah Tidak Subur di Lahan Datar dan Memiliki Jaringan Air Yang Baik", "Unit": "Rp3,675.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.1.11 Penyiraman pada Tanah Tidak Subur di Lahan Datar", "Item": "Penyiraman untuk 1 Hari (dengan Sprinkler*) untuk 1 m2 Rumput di Tanah Tidak Subur di Lahan Datar dan Memiliki\nJaringan Air Yang Baik", "Unit": "Rp4,885.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "4.1.12 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Subur di Kelerengan Tanah 1:2\n(13Â° - 26.5Â°) per m2", "Unit": "Rp3,115.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.1.12 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Subur di Kelerengan Tanah 1:2\n(26.5Â°- 45Â°) per m2", "Unit": "Rp3,141.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.1.12 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Subur di Kelerengan Tanah\n1:0.5 (45Â° - 63Â°) per m2", "Unit": "Rp3,245.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.1.13 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Tidak Subur di Kelerengan Tanah 1:2 (13Â° - 26.5Â°) per m2 untuk Sumber Air Dari Luar Lokasi Pekerjaan", "Unit": "Rp6,993.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "4.1.13 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Tidak Subur di Kelerengan Tanah 1:1 (26.5Â° - 45Â°) per m2 untuk Sumber Air Dari Luar Lokasi Pekerjaan", "Unit": "Rp7,018.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "4.1.13 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Tidak Subur di Kelerengan Tanah 1:0.5 (45Â° - 63Â°) per m2 untuk Sumber Air Dari Luar Lokasi Pekerjaan", "Unit": "Rp7,122.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "4.1.13 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Tidak Subur di Kelerengan Tanah 1:2 (13Â° - 26.5Â°) per m2 untuk Sumber Air Tersedia Lokasi Pekerjaan", "Unit": "Rp6,140.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "4.1.13 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Tidak Subur di Kelerengan Tanah 1:1 (26.5Â° - 45Â°) per m2 untuk Sumber Air Tersedia Lokasi Pekerjaan", "Unit": "Rp6,166.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "4.1.13 Penyiraman pada Tanah Subur di Lahan Miring/Kelerengan", "Item": "Penyiraman untuk 1 Hari di Tanah Tidak Subur di Kelerengan Tanah 1:0.5 (45Â° - 63Â°) per m2 untuk Sumber Air Tersedia Lokasi Pekerjaan", "Unit": "Rp6,270.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "4.2.1 Penyiraman pada Masa Pemeliharaan", "Item": "Penyiraman 1m2 Area Tanam untuk 1 hari (dengan Selang Plastik\n3/4 inch)", "Unit": "Rp3,091.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.2.1 Penyiraman pada Masa Pemeliharaan", "Item": "Penyiraman 1 m2 Area Tanam untuk 1 hari (dengan Sprinkler)\n*Sistem Sprinkler Tersedia", "Unit": "Rp3,070.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.2.2 Pemupukan Organik", "Item": "Pemupukan Pupuk Organik (1 kali) untuk 1 Buah Pohon/Palem", "Unit": "Rp3,951.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.2.2 Pemupukan Organik", "Item": "Pemupukan Pupuk Organik (1 kali) untuk 1 m2 Semak/Penutup\nTanah/Rumput", "Unit": "Rp743.00", "Price": 74300, "Source": "AHSP 2025"},
+    {"Category": "4.2.3 Pemupukan Anorganik", "Item": "Pemupukan Pupuk Anorganik Padat (1 kali) untuk 1 Buah\nPohon/Palem", "Unit": "Rp4,426.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "4.2.3 Pemupukan Anorganik", "Item": "Pemupukan Pupuk Anorganik Padat (1 kali) untuk 1 m2 Semak", "Unit": "Rp1,411.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.2.3 Pemupukan Anorganik", "Item": "Pemupukan Pupuk Anorganik Padat (1 kali) untuk 1 m2 Semak", "Unit": "Rp1,411.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.2.3 Pemupukan Anorganik", "Item": "Pemupukan pupuk anorganik cair (1 kali) untuk 1 buah\npohon/palem", "Unit": "Rp6,942.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "4.2.3 Pemupukan Anorganik", "Item": "Pemupukan pupuk anorganik cair (1 kali) untuk 1 buah\nsemak/penutup tanah/rumput", "Unit": "Rp3,106.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 Buah Pohon Kecil (Dia. Tajuk < 5 m, Tinggi 3-6m)\nTermasuk Pengangkutan Keluar Area Tanam", "Unit": "Rp10,237.00", "Price": 10, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 Buah Pohon Kecil (Dia. Tajuk < 5 m, Tinggi 3-6m)\nTermasuk Pengangkutan Keluar Area Tanam", "Unit": "Rp15,709.00", "Price": 15, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 Buah Pohon Besar (Dia. Tajuk > 10 m) Termasuk\nPengangkutan Keluar Area Tanam", "Unit": "Rp32,323.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 Buah Palem Sedang/Besar, Termasuk\nPengangkutan Keluar Area Tanam", "Unit": "Rp24,453.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 m2 Semak dengan Gunting Pangkas", "Unit": "Rp2,581.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 m2 Penutup Tanah dengan Gunting Pangkas", "Unit": "Rp2,258.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 m2 Rumput dengan Mesin Gendong", "Unit": "Rp1,999.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.2.4 Pemangkasan", "Item": "Pemangkasan 1 m2 Rumput dengan Mesin Dorong", "Unit": "Rp66.00", "Price": 6600, "Source": "AHSP 2025"},
+    {"Category": "4.2.5 Penyemprotan Pestisida (Insektisida/Fungisida)", "Item": "Penyemprotan Pestisida (Insektisida/Fungisida) dengan Sprayer\nGendong 1 Kali untuk 1 Buah Pohon/Palem", "Unit": "Rp4,421.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "4.2.5 Penyemprotan Pestisida (Insektisida/Fungisida)", "Item": "Penyemprotan Pestisida (Fungisida /Insektisida) dengan Sprayer\nGendong 1 Kali untuk 1 m2 Semak", "Unit": "Rp1,439.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.2.5 Penyemprotan Pestisida (Insektisida/Fungisida)", "Item": "Penyemprotan Pestisida (Fungisida /Insektisida) dengan Sprayer\nGendong 1 Kali untuk 1 m2 Penutup Tanah/Rumput", "Unit": "Rp1,278.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "4.2.6 Pembersihan Lahan (Menyapu)", "Item": "Pembersihan (Penyapuan) 1 m2 Area Tanam", "Unit": "Rp43.00", "Price": 4300, "Source": "AHSP 2025"},
+    {"Category": "4.2.7 Pencabutan Gulma", "Item": "Pencabutan Gulma (Intensitas Gulma di Atas 50%) 1 m2 Rumput", "Unit": "Rp3,740.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "4.2.7 Pencabutan Gulma", "Item": "Pencabutan Gulma (Intensitas Gulma di Atas 20%) 1 m2 Rumput", "Unit": "Rp2,258.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "4.3. PEKERJAAN HARDSCAPE DAN STREET FURNITURE", "Item": "Pembuatan dan pemasangan 1 buah Tong Sampah Kaleng 2 Tabung dengan Rangka Hollow 30x60", "Unit": "Rp458,283.00", "Price": 458, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 4 mmÂ²", "Unit": "Rp21,600.00", "Price": 21, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 6 mmÂ²", "Unit": "Rp27,300.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 10 mmÂ²", "Unit": "Rp34,900.00", "Price": 34, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 16 mmÂ²", "Unit": "Rp57,700.00", "Price": 57, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 25 mmÂ²", "Unit": "Rp85,700.00", "Price": 85, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 35 mmÂ²", "Unit": "Rp113,300.00", "Price": 113, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 50 mmÂ²", "Unit": "Rp144,400.00", "Price": 144, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 70 mmÂ²", "Unit": "Rp210,000.00", "Price": 210, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 95 mmÂ²", "Unit": "Rp279,000.00", "Price": 279, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 120 mmÂ²", "Unit": "Rp342,200.00", "Price": 342, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 150 mmÂ²", "Unit": "Rp413,700.00", "Price": 413, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 185 mmÂ²", "Unit": "Rp513,400.00", "Price": 513, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 250 mmÂ²", "Unit": "Rp663,900.00", "Price": 663, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 300 mmÂ²", "Unit": "Rp825,700.00", "Price": 825, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 400 mmÂ²", "Unit": "Rp1,043,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 500 mmÂ²", "Unit": "Rp1,331,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 1 x 630 mmÂ²", "Unit": "Rp1,648,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 2 x 1,5 mmÂ²", "Unit": "Rp27,300.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 2 x 2,5 mmÂ²", "Unit": "Rp33,100.00", "Price": 33, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 2 x 4 mmÂ²", "Unit": "Rp41,300.00", "Price": 41, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 2 x 6 mmÂ²", "Unit": "Rp56,400.00", "Price": 56, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 2 x 10 mmÂ²", "Unit": "Rp84,900.00", "Price": 84, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 2 x 16 mmÂ²", "Unit": "Rp128,500.00", "Price": 128, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 1,5 mmÂ²", "Unit": "Rp31,100.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 2,5 mmÂ²", "Unit": "Rp39,400.00", "Price": 39, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 4 mmÂ²", "Unit": "Rp56,600.00", "Price": 56, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 6 mmÂ²", "Unit": "Rp73,000.00", "Price": 73, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 10 mmÂ²", "Unit": "Rp112,700.00", "Price": 112, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 16 mmÂ²", "Unit": "Rp162,600.00", "Price": 162, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 25 mmÂ²", "Unit": "Rp239,600.00", "Price": 239, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 35 mmÂ²", "Unit": "Rp319,800.00", "Price": 319, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 3 x 50 mmÂ²", "Unit": "Rp411,300.00", "Price": 411, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 1,5 mmÂ²", "Unit": "Rp35,700.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 2,5 mmÂ²", "Unit": "Rp48,400.00", "Price": 48, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 4 mmÂ²", "Unit": "Rp69,200.00", "Price": 69, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 6 mmÂ²", "Unit": "Rp92,000.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 10 mmÂ²", "Unit": "Rp139,800.00", "Price": 139, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 16 mmÂ²", "Unit": "Rp206,200.00", "Price": 206, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 25 mmÂ²", "Unit": "Rp313,000.00", "Price": 313, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 35 mmÂ²", "Unit": "Rp423,200.00", "Price": 423, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 50 mmÂ²", "Unit": "Rp557,900.00", "Price": 557, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 70 mmÂ²", "Unit": "Rp794,500.00", "Price": 794, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 95 mmÂ²", "Unit": "Rp1,091,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 120 mmÂ²", "Unit": "Rp1,353,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 150 mmÂ²", "Unit": "Rp1,666,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 185 mmÂ²", "Unit": "Rp2,055,800.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 240 mmÂ²", "Unit": "Rp2,708,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.1 Kabel NYY", "Item": "Pemasangan 1 m' kabel NYY 4 x 300 mmÂ²", "Unit": "Rp3,348,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 1,5 mmÂ²", "Unit": "Rp10,200.00", "Price": 10, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 2,5 mmÂ²", "Unit": "Rp12,900.00", "Price": 12, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 4 mmÂ²", "Unit": "Rp20,200.00", "Price": 20, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 6 mmÂ²", "Unit": "Rp25,100.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 10 mmÂ²", "Unit": "Rp37,500.00", "Price": 37, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 16 mmÂ²", "Unit": "Rp53,900.00", "Price": 53, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 2 x 1,5 mmÂ² + PVC conduit HI 20 mmÂ²", "Unit": "Rp29,000.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 3 x 1,5 mmÂ² + PVC conduit HI 20 mmÂ²", "Unit": "Rp35,100.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 3 x 2,5 mmÂ² + PVC conduit HI 20 mmÂ²", "Unit": "Rp41,900.00", "Price": 41, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 3 x 2,5 mmÂ² + PVC conduit HI 32 mmÂ²", "Unit": "Rp62,100.00", "Price": 62, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 5 x 2,5 mmÂ² + PVC conduit HI 20 mmÂ²", "Unit": "Rp82,500.00", "Price": 82, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 5 x 2,5 mmÂ² + PVC conduit HI 32 mmÂ²", "Unit": "Rp102,600.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 35 mmÂ²", "Unit": "Rp108,500.00", "Price": 108, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.2 Kabel NYA", "Item": "Pemasangan 1 m' kabel NYA 1 x 95 mmÂ²", "Unit": "Rp259,400.00", "Price": 259, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 2 x 1,5 mmÂ²", "Unit": "Rp23,900.00", "Price": 23, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 2 x 2,5 mmÂ²", "Unit": "Rp29,700.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 2 x 4 mmÂ²", "Unit": "Rp38,500.00", "Price": 38, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 2 x 6 mmÂ²", "Unit": "Rp50,400.00", "Price": 50, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 2 x 10 mmÂ²", "Unit": "Rp76,800.00", "Price": 76, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 3 x 1,5 mmÂ²", "Unit": "Rp27,200.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 3 x 2,5 mmÂ²", "Unit": "Rp40,300.00", "Price": 40, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 3 x 4 mmÂ²", "Unit": "Rp50,500.00", "Price": 50, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 3 x 6 mmÂ²", "Unit": "Rp71,700.00", "Price": 71, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 3 x 10 mmÂ²", "Unit": "Rp109,700.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 4 x 1,5 mmÂ²", "Unit": "Rp31,200.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 4 x 2,5 mmÂ²", "Unit": "Rp42,100.00", "Price": 42, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 4 x 4 mmÂ²", "Unit": "Rp63,700.00", "Price": 63, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 4 x 6 mmÂ²", "Unit": "Rp86,700.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 4 x 10 mmÂ²", "Unit": "Rp141,000.00", "Price": 141, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.3 Kabel NYM", "Item": "Pemasangan 1 m' kabel NYM 4 x 16 mmÂ²", "Unit": "Rp216,400.00", "Price": 216, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.4 Kabel NYMHY", "Item": "Pemasangan 1 m' kabel NYMHY 2 x 1,5 mmÂ²", "Unit": "Rp24,400.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.4 Kabel NYMHY", "Item": "Pemasangan 1 m' kabel NYMHY 2 x 2,5 mmÂ²", "Unit": "Rp30,500.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.4 Kabel NYMHY", "Item": "Pemasangan 1 m' kabel NYMHY 3 x 1,5 mmÂ²", "Unit": "Rp29,800.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.4 Kabel NYMHY", "Item": "Pemasangan 1 m' kabel NYMHY 3 x 2,5 mmÂ²", "Unit": "Rp40,300.00", "Price": 40, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.4 Kabel NYMHY", "Item": "Pemasangan 1 m' kabel NYMHY 4 x 2,5 mmÂ²", "Unit": "Rp50,000.00", "Price": 50, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.4 Kabel NYMHY", "Item": "Pemasangan 1 m' kabel NYMHY 3 x 1,5 mmÂ² + PVC conduit HI 20 mmÂ²", "Unit": "Rp35,300.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.4 Kabel NYMHY", "Item": "Pemasangan 1 m' kabel NYMHY 2 (3 x 1,5 mmÂ²) + PVC conduit HI 20 mmÂ²", "Unit": "Rp62,100.00", "Price": 62, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 2 x 1,5 mmÂ²", "Unit": "Rp42,200.00", "Price": 42, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 2 x 2,5 mmÂ²", "Unit": "Rp52,400.00", "Price": 52, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 2 x 4 mmÂ²", "Unit": "Rp58,600.00", "Price": 58, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 2 x 6 mmÂ²", "Unit": "Rp69,400.00", "Price": 69, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 2 x 10 mmÂ²", "Unit": "Rp92,400.00", "Price": 92, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 2 x 16 mmÂ²", "Unit": "Rp120,400.00", "Price": 120, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 3 x 1,5 mmÂ²", "Unit": "Rp49,800.00", "Price": 49, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 3 x 2,5 mmÂ²", "Unit": "Rp58,300.00", "Price": 58, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 3 x 4 mmÂ²", "Unit": "Rp79,500.00", "Price": 79, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 3 x 6 mmÂ²", "Unit": "Rp102,200.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 3 x 10 mmÂ²", "Unit": "Rp123,400.00", "Price": 123, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 3 x 16 mmÂ²", "Unit": "Rp188,500.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 1,5 mmÂ²", "Unit": "Rp51,000.00", "Price": 51, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 2,5 mmÂ²", "Unit": "Rp65,800.00", "Price": 65, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 4 mmÂ²", "Unit": "Rp102,000.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 6 mmÂ²", "Unit": "Rp111,000.00", "Price": 111, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 10 mmÂ²", "Unit": "Rp151,200.00", "Price": 151, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 16 mmÂ²", "Unit": "Rp234,900.00", "Price": 234, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 25 mmÂ²", "Unit": "Rp356,700.00", "Price": 356, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 35 mmÂ²", "Unit": "Rp451,900.00", "Price": 451, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 50 mmÂ²", "Unit": "Rp598,200.00", "Price": 598, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 70 mmÂ²", "Unit": "Rp832,600.00", "Price": 832, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 95 mmÂ²", "Unit": "Rp1,055,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 120 mmÂ²", "Unit": "Rp1,371,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 150 mmÂ²", "Unit": "Rp1,659,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 185 mmÂ²", "Unit": "Rp2,063,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 240 mmÂ²", "Unit": "Rp2,658,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.5 Kabel NYFGBY", "Item": "Pemasangan 1 m' kabel NYFGBY 4 x 300 mmÂ²", "Unit": "Rp3,279,800.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.6 Kabel FRC 3 x 2,5 mmÂ²", "Item": "Pemasangan 1 m' kabel FRC 3 x 2,5 mmÂ²", "Unit": "Rp62,800.00", "Price": 62, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.6 Kabel FRC 3 x 2,5 mmÂ²", "Item": "Pemasangan 1 m' kabel FRC 4 x 4 mmÂ²", "Unit": "Rp128,700.00", "Price": 128, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.6 Kabel FRC 3 x 2,5 mmÂ²", "Item": "Pemasangan 1 m' kabel FRC 4 x 6 mmÂ²", "Unit": "Rp154,000.00", "Price": 154, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.6 Kabel FRC 3 x 2,5 mmÂ²", "Item": "Pemasangan 1 m' kabel FRC 4 x 150 mmÂ²", "Unit": "Rp2,124,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.6 Kabel FRC 3 x 2,5 mmÂ²", "Item": "Pemasangan 1 m' kabel FRC 1 x 150 mmÂ²", "Unit": "Rp421,200.00", "Price": 421, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.6 Kabel FRC 3 x 2,5 mmÂ²", "Item": "Pemasangan 1 m' kabel FRC 2 x 1,5 mmÂ² + PVC Conduit HI 20 mm2", "Unit": "Rp46,400.00", "Price": 46, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.6 Kabel FRC 3 x 2,5 mmÂ²", "Item": "Pemasangan 1 m' kabel FRC 2 x 2,5 mmÂ² + PVC Conduit HI 20 mm2", "Unit": "Rp96,200.00", "Price": 96, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 4 mmÂ² (0,04 kg/m)", "Unit": "Rp24,900.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 6 mmÂ² (0,06 kg/m)", "Unit": "Rp58,100.00", "Price": 58, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 10 mmÂ² (0,10 kg/m)", "Unit": "Rp48,800.00", "Price": 48, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 16 mmÂ² (0,16 kg/m)", "Unit": "Rp53,900.00", "Price": 53, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 25 mmÂ² (0,25 kg/m)", "Unit": "Rp81,900.00", "Price": 81, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 35 mmÂ² (0,35 kg/m)", "Unit": "Rp109,500.00", "Price": 109, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 50 mmÂ² (0,50 kg/m)", "Unit": "Rp139,200.00", "Price": 139, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 70 mmÂ² (0,70 kg/m)", "Unit": "Rp202,400.00", "Price": 202, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.7 Kabel BCC", "Item": "Pemasangan 1 m' kabel BCC 95 mmÂ² (0,95 kg/m)", "Unit": "Rp264,400.00", "Price": 264, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.8 Kabel STP", "Item": "Pemasangan 1 m' Kabel STP AWG 18 + PVC Conduit HI 20 mm", "Unit": "Rp25,700.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.9 Kabel ITC", "Item": "Pemasangan 1 m' kabel ITC 2x2x0,6 mm2 + PVC Conduit HI 20 mm2", "Unit": "Rp28,400.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.10 Kabel UTP", "Item": "Pemasangan 1 m' kabel UTP CAT 6 + PVC Conduit HI 20 mm2", "Unit": "Rp19,200.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.11 Kabel Coaxial", "Item": "Pemasangan 1 m' kabel Coaxial 7C-2V", "Unit": "Rp44,700.00", "Price": 44, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 600x100mm TRU Powder Coating", "Unit": "Rp545,100.00", "Price": 545, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (horizontal) 500 x 100 mm", "Unit": "Rp486,000.00", "Price": 486, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (horizontal) 400 x 100 mm", "Unit": "Rp425,500.00", "Price": 425, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (horizontal) 300 x 100 mm", "Unit": "Rp362,200.00", "Price": 362, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (horizontal) 200 x 100 mm", "Unit": "Rp301,700.00", "Price": 301, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (vertikal) 600 x 100 mm", "Unit": "Rp525,700.00", "Price": 525, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (vertikal) 500 x 100 mm", "Unit": "Rp469,000.00", "Price": 469, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (vertikal) 400 x 100 mm", "Unit": "Rp410,900.00", "Price": 410, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (vertikal) 300 x 100 mm", "Unit": "Rp350,200.00", "Price": 350, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel tray (vertikal) 200 x 100 mm", "Unit": "Rp292,100.00", "Price": 292, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel Ladder  500 x 100 mm", "Unit": "Rp716,500.00", "Price": 716, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel Ladder  600 x 100 mm", "Unit": "Rp770,600.00", "Price": 770, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit kabel Ladder  800 x 100 mm", "Unit": "Rp815,500.00", "Price": 815, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit pasang baja ringan 75 x 35 mm + Hanger", "Unit": "Rp444,600.00", "Price": 444, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 1000 x 100 mm TRU Powder Coating", "Unit": "Rp985,300.00", "Price": 985, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 1000 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp1,012,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 1000 x 100 mm TRU OCP", "Unit": "Rp1,067,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 1000 x 100 mm TRC Powder Coating", "Unit": "Rp1,122,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 1000 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp1,012,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 1000 x 100 mm TRC OCP", "Unit": "Rp1,067,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 900 x 100 mm TRU Powder Coating", "Unit": "Rp847,800.00", "Price": 847, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 900 x 100 mm\nTRU Hot Dip Galvanized", "Unit": "Rp875,300.00", "Price": 875, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 900 x 100 mm\nTRU OCP", "Unit": "Rp902,800.00", "Price": 902, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 900 x 100 mm TRC Powder Coating", "Unit": "Rp916,500.00", "Price": 916, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 900 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp957,800.00", "Price": 957, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 900 x 100 mm\nTRC OCP", "Unit": "Rp985,300.00", "Price": 985, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 800 x 100 mm\nTRU Powder Coating", "Unit": "Rp641,500.00", "Price": 641, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 800 x 100 mm\nTRU Hot Dip Galvanized", "Unit": "Rp682,800.00", "Price": 682, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 800 x 100 mm\nTRU OCP", "Unit": "Rp710,300.00", "Price": 710, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 800 x 100 mm\nTRC Powder Coating", "Unit": "Rp737,800.00", "Price": 737, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 800 x 100 mm\nTRC Hot Dip Galvanized", "Unit": "Rp765,300.00", "Price": 765, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 800 x 100 mm TRC OCP", "Unit": "Rp792,800.00", "Price": 792, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 700 x 100 mm TRU Powder Coating", "Unit": "Rp542,300.00", "Price": 542, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 700 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp569,800.00", "Price": 569, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 700 x 100 mm TRU OCP", "Unit": "Rp597,300.00", "Price": 597, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 700 x 100 mm TRC Powder Coating", "Unit": "Rp624,800.00", "Price": 624, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 700 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp652,300.00", "Price": 652, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 700 x 100 mm TRC OCP", "Unit": "Rp679,800.00", "Price": 679, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit Kabel Tray (Horizontal) 600x100mm TRU Hot Dip Galvanizer", "Unit": "Rp2,314,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit Kabel Tray (Horizontal) 600x100mm TRU OCP", "Unit": "Rp1,787,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 unit Kabel Tray (Horizontal) 600x100mm TRC Powder Coating", "Unit": "Rp1,284,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 600 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp542,300.00", "Price": 542, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 600 x 100 mm TRC OCP", "Unit": "Rp569,800.00", "Price": 569, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 500 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp590,500.00", "Price": 590, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 500 x 100 mm TRU OCP", "Unit": "Rp604,200.00", "Price": 604, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 500 x 100 mm TRC Powder Coating", "Unit": "Rp631,700.00", "Price": 631, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 500 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp652,300.00", "Price": 652, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 500 x 100 mm TRC OCP", "Unit": "Rp673,000.00", "Price": 673, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 400 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp542,300.00", "Price": 542, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 400 x 100 mm TRU OCP", "Unit": "Rp542,300.00", "Price": 542, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 400 x 100 mm TRC Powder Coating", "Unit": "Rp583,600.00", "Price": 583, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 400 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp604,200.00", "Price": 604, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 400 x 100 mm TRC OCP", "Unit": "Rp624,800.00", "Price": 624, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 300 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp473,600.00", "Price": 473, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 300 x 100 mm TRU OCP", "Unit": "Rp501,100.00", "Price": 501, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 300 x 100 mm TRC Powder Coating", "Unit": "Rp528,600.00", "Price": 528, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 300 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp556,100.00", "Price": 556, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 300 x 100 mm TRC OCP", "Unit": "Rp583,600.00", "Price": 583, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 200 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp611,100.00", "Price": 611, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 200 x 100 mm TRU OCP", "Unit": "Rp404,800.00", "Price": 404, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 200 x 100 mm TRC Powder Coating", "Unit": "Rp432,300.00", "Price": 432, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 200 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp446,100.00", "Price": 446, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 200 x 100 mm TRC OCP", "Unit": "Rp473,600.00", "Price": 473, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 150 x 100 mm TRU Powder Coating", "Unit": "Rp404,800.00", "Price": 404, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 150 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp418,600.00", "Price": 418, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 150 x 100 mm TRU OCP", "Unit": "Rp446,100.00", "Price": 446, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 150 x 100 mm TRC Powder Coatingmasangan 1 Unit Kabel Tray (Horizontal) 150 x 100 mm TRU OCP", "Unit": "Rp473,600.00", "Price": 473, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 150 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp501,100.00", "Price": 501, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Horizontal) 150 x 100 mm TRC OCP", "Unit": "Rp572,800.00", "Price": 572, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 1000 x 100 mm TRU Powder Coating", "Unit": "Rp542,300.00", "Price": 542, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 1000 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp579,900.00", "Price": 579, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 1000 x 100 mm TRU OCP", "Unit": "Rp606,300.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 1000 x 100 mm TRC Powder Coating", "Unit": "Rp619,500.00", "Price": 619, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 1000 x 100 mm TRC Hot Dip Galvanized\\", "Unit": "Rp632,700.00", "Price": 632, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 1000 x 100 mm TRC OCP", "Unit": "Rp645,900.00", "Price": 645, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 900 x 100 mm TRU Powder Coating", "Unit": "Rp540,300.00", "Price": 540, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 900 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp553,500.00", "Price": 553, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 900 x 100 mm TRU OCP", "Unit": "Rp566,700.00", "Price": 566, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 900 x 100 mm TRC Powder Coating", "Unit": "Rp579,900.00", "Price": 579, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 900 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp593,100.00", "Price": 593, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 900 x 100 mm TRC OCP", "Unit": "Rp606,300.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 800 x 100 mm TRU Powder Coating", "Unit": "Rp553,500.00", "Price": 553, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 800 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp566,700.00", "Price": 566, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 800 x 100 mm TRU OCP", "Unit": "Rp579,900.00", "Price": 579, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 800 x 100 mm TRC Powder Coating", "Unit": "Rp593,100.00", "Price": 593, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 800 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp606,300.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 800 x 100 mm TRC OCP", "Unit": "Rp619,500.00", "Price": 619, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 700 x 100 mm TRU Powder Coating", "Unit": "Rp509,900.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 700 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp523,100.00", "Price": 523, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 700 x 100 mm TRU OCP", "Unit": "Rp536,300.00", "Price": 536, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 700 x 100 mm TRC Powder Coating", "Unit": "Rp549,500.00", "Price": 549, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 700 x 100 mm TRC Hot Dip Galvanized", "Unit": "Rp562,700.00", "Price": 562, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 700 x 100 mm TRC OCP", "Unit": "Rp575,900.00", "Price": 575, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 600 x 100 mm TRU Hot Dip Galvanized", "Unit": "Rp509,900.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 600 x 100 mm TRU OCP", "Unit": "Rp523,100.00", "Price": 523, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 600 x 100 mm TRC\nPowder Coating", "Unit": "Rp536,300.00", "Price": 536, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 600 x 100 mm TRC\nHot Dip Galvanized", "Unit": "Rp549,500.00", "Price": 549, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 600 x 100 mm TRC\nOCP", "Unit": "Rp575,900.00", "Price": 575, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 500 x 100 mm TRU\nHot Dip Galvanized", "Unit": "Rp509,900.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 500 x 100 mm TRU\nOCP", "Unit": "Rp523,100.00", "Price": 523, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 500 x 100 mm TRC\nPowder Coating", "Unit": "Rp536,300.00", "Price": 536, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 500 x 100 mm TRC\nHot Dip Galvanized", "Unit": "Rp549,500.00", "Price": 549, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 500 x 100 mm TRC\nOCP", "Unit": "Rp562,700.00", "Price": 562, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 400 x 100 mm TRU\nHot Dip Galvanized", "Unit": "Rp509,900.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 400 x 100 mm TRU\nOCP", "Unit": "Rp523,100.00", "Price": 523, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 400 x 100 mm TRC\nPowder Coating", "Unit": "Rp536,300.00", "Price": 536, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 400 x 100 mm TRC\nHot Dip Galvanized", "Unit": "Rp549,500.00", "Price": 549, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 400 x 100 mm TRC\nOCP", "Unit": "Rp562,700.00", "Price": 562, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 300 x 100 mm TRU\nHot Dip Galvanized", "Unit": "Rp509,900.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 300 x 100 mm TRU\nOCP", "Unit": "Rp523,100.00", "Price": 523, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 300 x 100 mm TRC\nPowder Coating", "Unit": "Rp536,300.00", "Price": 536, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 300 x 100 mm TRC\nHot Dip Galvanized", "Unit": "Rp549,500.00", "Price": 549, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 300 x 100 mm TRC\nOCP", "Unit": "Rp562,700.00", "Price": 562, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 200 x 100 mm TRU\nHot Dip Galvanized", "Unit": "Rp496,700.00", "Price": 496, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 200 x 100 mm TRU\nOCP", "Unit": "Rp509,900.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 200 x 100 mm TRC\nPowder Coating", "Unit": "Rp523,100.00", "Price": 523, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 200 x 100 mm TRC\nHot Dip Galvanized", "Unit": "Rp536,300.00", "Price": 536, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 200 x 100 mm TRC\nOCP", "Unit": "Rp549,500.00", "Price": 549, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 150 x 100 mm TRU\nPowder Coating", "Unit": "Rp496,700.00", "Price": 496, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 150 x 100 mm TRU\nHot Dip Galvanized", "Unit": "Rp509,900.00", "Price": 509, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 150 x 100 mm TRU\nOCP", "Unit": "Rp523,100.00", "Price": 523, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 150 x 100 mm TRC\nPowder Coating", "Unit": "Rp536,300.00", "Price": 536, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 150 x 100 mm TRC\nHot Dip Galvanized", "Unit": "Rp549,500.00", "Price": 549, "Source": "AHSP 2025"},
+    {"Category": "5.1.1.12 Kabel TRAY / Ladder", "Item": "Pemasangan 1 Unit Kabel Tray (Vertikal) 150 x 100 mm TRC\nOCP", "Unit": "Rp562,700.00", "Price": 562, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Utama Tegangan Menengah (PUTM)", "Unit": "Rp5,332,000.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Utama Tegangan Redah (PUTR) per Kubikal", "Unit": "Rp3,358,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Main Distribution Panel (MDP) Floor Standing", "Unit": "Rp5,633,300.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Main Distribution Panel (MDP) Wall Mounted", "Unit": "Rp5,987,900.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Sub Distribution Panel (SDP) Floor Standig", "Unit": "Rp4,401,500.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Sub Distribution Panel (SDP) Wall Maunted", "Unit": "Rp4,088,900.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Lantai Wall Mounted (800x 600 x200 mm)", "Unit": "Rp3,841,000.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Lantai Wall Mounted (600x 400 x200 mm)", "Unit": "Rp3,587,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel kWh Meter", "Unit": "Rp3,301,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Penerang Luar Outdoor", "Unit": "Rp4,085,600.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Kontrol (Pompa Transfer, Pompa Kolam Renang,Water Treatment Plat (WTP), Instalasi Pengelolaan Air Limbah ( IPAL), dan Power Lift)", "Unit": "Rp6,337,900.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Power Gondola", "Unit": "Rp6,505,600.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Power Elektronik", "Unit": "Rp4,171,000.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Power AHU", "Unit": "Rp5,987,900.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Power AC (VRF/DX System)", "Unit": "Rp2,328,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Power Chiller", "Unit": "Rp3,356,100.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Kontrol Power Chiller", "Unit": "Rp3,253,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Kontrol Pompa Cooling Tower", "Unit": "Rp2,721,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit Panel Kontrol Fan Presurisasi", "Unit": "Rp2,713,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.2 Pemasangan Panel Listrik", "Item": "Pemasangan 1 Unit MCB Box", "Unit": "Rp563,500.00", "Price": 563, "Source": "AHSP 2025"},
+    {"Category": "5.1.3 Pemasangan Genset", "Item": "Pemasanga 1 Unit Genset Kap : 75 Kva Silent Type", "Unit": "Rp86,396,700.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "5.1.3 Pemasangan Genset", "Item": "Pemasanga 1 Unit Genset Kap : 100 Kva Silent Type", "Unit": "Rp91,332,900.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "5.1.3 Pemasangan Genset", "Item": "Pemasanga 1 Unit Genset Kap : 400 Kva Silent Type", "Unit": "Rp129,753,000.00", "Price": 129, "Source": "AHSP 2025"},
+    {"Category": "5.1.3 Pemasangan Genset", "Item": "Pemasanga 1 Unit UPS KVA/3P Type  Online Back Up Battery 15 menit", "Unit": "Rp20,739,400.00", "Price": 20, "Source": "AHSP 2025"},
+    {"Category": "5.1.3 Pemasangan Genset", "Item": "Pemasanga 1 Unit Tangki Solar Harian 500 Liter", "Unit": "Rp5,493,400.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.1.3 Pemasangan Genset", "Item": "Pemasanga 1 Unit Tangki Solar", "Unit": "Rp4,874,500.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.1.4 Pemasangan Trafo", "Item": "Pemasanga 1 Unit Trafo Kap : 630 Kva : Synthetic Oil Ester (Termasuk Terminasi Instalasi Trafo)", "Unit": "Rp21,912,700.00", "Price": 21, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Saklar Tunggal", "Unit": "Rp44,900.00", "Price": 44, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Saklar Ganda", "Unit": "Rp55,800.00", "Price": 55, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Saklar Triple", "Unit": "Rp107,900.00", "Price": 107, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Grid Switch 2 x 2", "Unit": "Rp168,300.00", "Price": 168, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Grid Switch 2 x 12  dan 14", "Unit": "Rp205,000.00", "Price": 205, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Grid Switch 2 x 24", "Unit": "Rp243,000.00", "Price": 243, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Grid Switch 4 x 2 Gang", "Unit": "Rp292,200.00", "Price": 292, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Stop Kontak (1 P, 10 A, 200 W+ cover,hand Dryer 1 Ph. 1000 w)", "Unit": "Rp97,900.00", "Price": 97, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 Unit Stop Kontak AC", "Unit": "Rp101,600.00", "Price": 101, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 titik Instalasi Stop Kontak", "Unit": "Rp521,400.00", "Price": 521, "Source": "AHSP 2025"},
+    {"Category": "5.1.5 Pemasangan Saklar dan Stop Kontak", "Item": "Pemasanga 1 titik Instalasi Stop Kontak (Kabel LSOH)", "Unit": "Rp521,400.00", "Price": 521, "Source": "AHSP 2025"},
+    {"Category": "5.1.6 Pemasangan kWh meter token", "Item": "Pemasangan 1 unit kWh Meter Token 1 Phase", "Unit": "Rp716,100.00", "Price": 716, "Source": "AHSP 2025"},
+    {"Category": "5.1.6 Pemasangan kWh meter token", "Item": "Pemasangan 1 unit kWh Meter Token 3 Phase", "Unit": "Rp3,734,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.1.6 Pemasangan kWh meter token", "Item": "Pemasangan 1 unit Softwer Sistem Offile / online untuk kWh Meter Swakelola Prabayar", "Unit": "Rp2,635,800.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.1.6 Pemasangan kWh meter token", "Item": "Pemasangan 1 Unit PC Server termasuk OS Windows Server, monitor, keyboard dan Mouse", "Unit": "Rp39,480,300.00", "Price": 39, "Source": "AHSP 2025"},
+    {"Category": "5.1.8 Pemasangan sistem Pembumian", "Item": "Pemasangan 1 set pembumian sistem elektrikal dengan batang tembaga dia.5/8\"", "Unit": "Rp15,118,900.00", "Price": 15, "Source": "AHSP 2025"},
+    {"Category": "5.1.8 Pemasangan sistem Pembumian", "Item": "Pemasangan 1 set pembumian sistem elektrikal dengan batang tembaga dia.3/4\"", "Unit": "Rp18,623,500.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 unit Air Terminal @1.000 mm", "Unit": "Rp2,074,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 unit Base Air Terminal", "Unit": "Rp808,600.00", "Price": 808, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit DC Clip Non Metalic Clamp", "Unit": "Rp113,900.00", "Price": 113, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 UnitSquare Tape Clamp", "Unit": "Rp125,010.00", "Price": 125, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit Bimetallic Connector", "Unit": "Rp100,800.00", "Price": 100, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit Grounding Test Box", "Unit": "Rp692,900.00", "Price": 692, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit 5/8\" Rod Coupling", "Unit": "Rp149,600.00", "Price": 149, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit 5/8\"Driving Stud", "Unit": "Rp125,000.00", "Price": 125, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit Rod to Cable Clamp (Type GUV)", "Unit": "Rp364,400.00", "Price": 364, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit Polymer Inspection Pit", "Unit": "Rp738,900.00", "Price": 738, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit Coupling Bonding Grounded Rod 70 mm2", "Unit": "Rp2,711,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit Clamp BC L ukuran BC 70 mm2", "Unit": "Rp49,200.00", "Price": 49, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 Unit Clamp PVC 1\"", "Unit": "Rp8,100.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 unit Copper Air Terminal Base 15 mm (dudukan)", "Unit": "Rp339,700.00", "Price": 339, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 unit 15x500 mm Aluminium Air Rod", "Unit": "Rp291,200.00", "Price": 291, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 unit 15x500 mm Coper Air Rod", "Unit": "Rp801,800.00", "Price": 801, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 m' 25x3 mm Bare Aluminium Tape", "Unit": "Rp168,500.00", "Price": 168, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 buah 5/8\" x 1800 mm Extensible Copperbond Rod", "Unit": "Rp697,800.00", "Price": 697, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 buah 5/8\" Copperbond Rod", "Unit": "Rp321,500.00", "Price": 321, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 buah Grounding Rod Gip 1\" Panjang 1 m", "Unit": "Rp262,200.00", "Price": 262, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 buah Grounding Rod Gip 1\" Panjang 2m", "Unit": "Rp426,800.00", "Price": 426, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 buah 1\" Rod Coupling", "Unit": "Rp247,800.00", "Price": 247, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 buah Exothermic Welding", "Unit": "Rp292,000.00", "Price": 292, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 unit Surge Arrester 1 Phase ( 15 KA)", "Unit": "Rp927,500.00", "Price": 927, "Source": "AHSP 2025"},
+    {"Category": "5.2 PEKERJAAN SISTEM PROTEKSI PETIR", "Item": "Pemasangan 1 unit Surge Arrester 3 Phase ( 15 KA)", "Unit": "Rp1,295,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu", "Unit": "Rp372,200.00", "Price": 372, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu (Kabel LSOH)", "Unit": "Rp372,200.00", "Price": 372, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Downlight 5 inch 14,5 Watt LED", "Unit": "Rp132,200.00", "Price": 132, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting E27 + 10 Watt LED", "Unit": "Rp65,800.00", "Price": 65, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting E27 + 10 Watt LED c/w Nicad Battery", "Unit": "Rp198,900.00", "Price": 198, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting E27 + 19 Watt LED", "Unit": "Rp124,500.00", "Price": 124, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting E27 + 19 Watt LED  c/w Nicad Battery", "Unit": "Rp257,600.00", "Price": 257, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit RM TKI 2 x 16 Watt LED", "Unit": "Rp386,500.00", "Price": 386, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu Sorot LED 100 watt", "Unit": "Rp217,100.00", "Price": 217, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu Sorot RGB 30 Watt 100 untuk Outdoor", "Unit": "Rp128,800.00", "Price": 128, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu High Bay 100 Watt", "Unit": "Rp2,268,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu Eksit LED 3 Watt c/w Battery", "Unit": "Rp218,000.00", "Price": 218, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TLED 1 X 14 Watt 2.100 Lumen (Dust Proof)", "Unit": "Rp137,100.00", "Price": 137, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TLED 1 X 24 Watt 2.100 Lumen (Balk)", "Unit": "Rp145,500.00", "Price": 145, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TLED 1 X 24 Watt 2.100 Lumen (Balk) c/w Niced Battery", "Unit": "Rp278,600.00", "Price": 278, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TLED 2 X 24 Watt 2.100 Lumen (Balk)", "Unit": "Rp259,600.00", "Price": 259, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TLED 2 X 24 Watt 2.100 Lumen (Balk) c/w Nicad Battery", "Unit": "Rp392,700.00", "Price": 392, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 unit Lampu PJU Kawasan LED 50 Watt + Tiang 6-7 M (single Pool)", "Unit": "Rp3,596,800.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu Kawasan LED 50 Watt + Solar Cell + Tiang 6-7 M ( Single Pool)", "Unit": "Rp4,158,300.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu Taman 25 Watt + Tiang 1 M", "Unit": "Rp318,100.00", "Price": 318, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting + 7 Watt LED", "Unit": "Rp85,000.00", "Price": 85, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting + 7 Watt LED c/w Nicad Battery", "Unit": "Rp218,100.00", "Price": 218, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting +  9 Watt LED", "Unit": "Rp93,400.00", "Price": 93, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting +  9 Watt LED c/w Nicad Battery", "Unit": "Rp226,500.00", "Price": 226, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting +  20 Watt Baret c/w Nicad Battery", "Unit": "Rp278,600.00", "Price": 278, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting +  32 Watt Baret c/w Nicad Battery", "Unit": "Rp302,800.00", "Price": 302, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Fitting +  40 Watt Lampu Pijar", "Unit": "Rp86,200.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TL 18 Watt ( Balk)", "Unit": "Rp82,600.00", "Price": 82, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TLED 18 Watt ( Balk)", "Unit": "Rp94,700.00", "Price": 94, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TL  36 Watt ( Balk)", "Unit": "Rp88,700.00", "Price": 88, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Lampu TL ED 36 Watt ( Balk)", "Unit": "Rp149,200.00", "Price": 149, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu Luar/Taman ( dengan Kabel NYFGBY)", "Unit": "Rp701,300.00", "Price": 701, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu Luar/Taman ( dengan Kabel NYY)", "Unit": "Rp3,357,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu Luar/Taman ( dengan Kabel NYM)", "Unit": "Rp177,100.00", "Price": 177, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu PJU ( dengan Kabel NYFGBY)", "Unit": "Rp1,298,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu PJU ( dengan Kabel NYY)", "Unit": "Rp1,036,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu PJU Tiang 7 m  ( dengan Kabel NYM)", "Unit": "Rp305,900.00", "Price": 305, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 titik Instalasi Lampu PJU Tiang 9 m  ( dengan Kabel NYM)", "Unit": "Rp357,500.00", "Price": 357, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 Unit Sport Floodlight LED, Min 180000 Lumen, Max. 1340 W, 5700K, min. CRI 80, min. IP 66 c/w DMX Led Driver & Customized Bracklet ( Field of Play)", "Unit": "Rp1,811,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 buah Junction Box IP Rated", "Unit": "Rp215,700.00", "Price": 215, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Setting & Aiming 1 titik Lampu Field Of Play (FOP) Eksisting", "Unit": "Rp173,600.00", "Price": 173, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 m' Kabel Fiber Optic Dual Core Single Mode + Pipa HDPE Conduit 20 mm", "Unit": "Rp30,400.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "5.3.1 Pemasangan Lampu dan Armatur", "Item": "Pemasangan 1 buah DMX LED Controller , 1 Universe", "Unit": "Rp2,043,000.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.3.2 Pemasangan Sensor", "Item": "Pemasangan 1 Unit Sensor Cahaya", "Unit": "Rp103,100.00", "Price": 103, "Source": "AHSP 2025"},
+    {"Category": "5.3.2 Pemasangan Sensor", "Item": "Pemasangan 1 Unit Sensor Gerak", "Unit": "Rp112,700.00", "Price": 112, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit MCP-FA (Semi Addressable 1 Loop)", "Unit": "Rp35,008,600.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1  Unit PC Komputer", "Unit": "Rp4,256,100.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Alarm Printer", "Unit": "Rp3,042,300.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Report Printer", "Unit": "Rp2,349,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Announciator", "Unit": "Rp3,053,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Terminal Box Fire Alarm (Lengkap dengan Modul)", "Unit": "Rp833,200.00", "Price": 833, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Some Detector Addressable", "Unit": "Rp949,600.00", "Price": 949, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Rate of Rise Detector Addressable", "Unit": "Rp444,800.00", "Price": 444, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Fix Heat Detector Addressable", "Unit": "Rp416,000.00", "Price": 416, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Smoke Detector Konvensional", "Unit": "Rp331,600.00", "Price": 331, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Rate of Rise Detector Konvensional", "Unit": "Rp325,900.00", "Price": 325, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Fix Heat Detector Konvensional", "Unit": "Rp383,600.00", "Price": 383, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit  Lamp Indicator", "Unit": "Rp98,800.00", "Price": 98, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Manual Break Glass", "Unit": "Rp102,200.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit  Horn Strobe", "Unit": "Rp235,100.00", "Price": 235, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit  Fire Fighting Telepon", "Unit": "Rp188,900.00", "Price": 188, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit  Alrm Bell", "Unit": "Rp131,100.00", "Price": 131, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi Detector Adressable Per Titik", "Unit": "Rp204,300.00", "Price": 204, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi Detector Konvensional Per Tititk", "Unit": "Rp249,800.00", "Price": 249, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi Lamp Indicator", "Unit": "Rp372,900.00", "Price": 372, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi Manual Push Button", "Unit": "Rp623,400.00", "Price": 623, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi Alarm Bell", "Unit": "Rp372,900.00", "Price": 372, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi  Indicator Bell", "Unit": "Rp623,400.00", "Price": 623, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi Intercom Jack", "Unit": "Rp277,200.00", "Price": 277, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 titik Instalasi Flow & Temper Switch", "Unit": "Rp635,100.00", "Price": 635, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Sirine Module", "Unit": "Rp821,900.00", "Price": 821, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Control Module", "Unit": "Rp458,900.00", "Price": 458, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Relay Module", "Unit": "Rp160,600.00", "Price": 160, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Isolator Module", "Unit": "Rp301,600.00", "Price": 301, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Monitor  Module", "Unit": "Rp277,400.00", "Price": 277, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Terminal Box Fire Alarm ( Tanpa Modul)", "Unit": "Rp385,800.00", "Price": 385, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Kabel Power Fire Alarm NYA 20x1,5 mm2", "Unit": "Rp30,000.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Kabel Power Fire Alarm NYA 3x2x2,5 mm2", "Unit": "Rp36,800.00", "Price": 36, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 buah Kabel Power Fire Alarm NYA 5x2x2,5 mm2", "Unit": "Rp83,500.00", "Price": 83, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Rectifier", "Unit": "Rp4,278,900.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit Power Surge Arrester", "Unit": "Rp1,640,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit UPS 2 KVA ( Inverter, Rectifier, Battery Backup 15 menit)", "Unit": "Rp4,517,200.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit UPS 2 KVA ( Inverter, Rectifier, Battery Backup 30 menit)", "Unit": "Rp4,863,700.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit UPS 2 KVA ( Inverter, Rectifier, Battery Backup 1 Jam)", "Unit": "Rp5,787,700.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit UPS 2 KVA ( Inverter, Rectifier, Battery Backup 2Jam)", "Unit": "Rp6,134,200.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Unit UPS 2 KVA ( Inverter, Rectifier, Battery Backup 4 Jam)", "Unit": "Rp6,711,700.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "5.4.1 Sistem Alarm Kebakaran", "Item": "Pemasangan 1 Buah End of Line Resistor", "Unit": "Rp31,700.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit Patch Panel UTP Cat 6 4 Port", "Unit": "Rp1,906,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  Wirig Mangement", "Unit": "Rp191,700.00", "Price": 191, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  PoE Switch HUB", "Unit": "Rp714,700.00", "Price": 714, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  Network Video Recorder (NVR) Kapasitas 32 Chanel + 8TB Hardisk", "Unit": "Rp8,907,900.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  RAK HUB 12 U ( Lengkap dengan Power Outlet)", "Unit": "Rp1,084,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  LCD Monitor 32\"", "Unit": "Rp2,922,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  LCD Monitor 50\"", "Unit": "Rp4,386,800.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  Keyboard + Mouse", "Unit": "Rp421,100.00", "Price": 421, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit  Indoor Fix Dome IP Camera", "Unit": "Rp634,700.00", "Price": 634, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 Unit Outdoor Fix Dome IP Camera", "Unit": "Rp679,700.00", "Price": 679, "Source": "AHSP 2025"},
+    {"Category": "5.4.2 Sistem CCTV", "Item": "Pemasangan 1 titik Instalasi Camera CCTV", "Unit": "Rp508,600.00", "Price": 508, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit MDF - SS", "Unit": "Rp1,740,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Selector Switch c/w Control Panel", "Unit": "Rp1,177,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Power Amplifier 360 Watt", "Unit": "Rp1,830,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Power Amplifier 240 Watt", "Unit": "Rp1,483,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Power Amplifier 120 Watt", "Unit": "Rp1,252,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit  System Controller ( Mixer Pre Amp-Equalizer)", "Unit": "Rp468,600.00", "Price": 468, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit VCD/DVD/MP3/MP4", "Unit": "Rp316,200.00", "Price": 316, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Sound Source", "Unit": "Rp316,200.00", "Price": 316, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Automatic Alarm System", "Unit": "Rp1,213,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Paging Mic Keyboard", "Unit": "Rp778,100.00", "Price": 778, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit UPS 1 KVA ( Inverter, Rectifier, Battery Backup 4 Jam)", "Unit": "Rp2,986,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Rack Cabinet", "Unit": "Rp1,033,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Terminal Box Tata Suara (TBTS)", "Unit": "Rp166,300.00", "Price": 166, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Ceiling Speaker", "Unit": "Rp834,100.00", "Price": 834, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Wall Speaker", "Unit": "Rp890,800.00", "Price": 890, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Horn Speaker", "Unit": "Rp337,400.00", "Price": 337, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 Unit Horn Speaker+ Tiang", "Unit": "Rp636,600.00", "Price": 636, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 titik Instalasi  Horn Speaker", "Unit": "Rp606,600.00", "Price": 606, "Source": "AHSP 2025"},
+    {"Category": "5.4.3 Sistem Tata Suara", "Item": "Pemasangan 1 titik Instalasi  Ceiling Speaker", "Unit": "Rp269,600.00", "Price": 269, "Source": "AHSP 2025"},
+    {"Category": "5.4.4. Sistem Telepon", "Item": "Pemasangan 1 Unit MDF 2 x 8 pair", "Unit": "Rp217,100.00", "Price": 217, "Source": "AHSP 2025"},
+    {"Category": "5.4.4. Sistem Telepon", "Item": "Pemasangan 1 Unit MDF 2 x 10 pair", "Unit": "Rp247,300.00", "Price": 247, "Source": "AHSP 2025"},
+    {"Category": "5.4.4. Sistem Telepon", "Item": "Pemasangan 1 Unit PABX Kap: 1 Line 10 Extension ( Lengkap dengan Pemprograman)", "Unit": "Rp1,545,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.4. Sistem Telepon", "Item": "Pemasangan 1 Unit PABX Kap: 1 Line 8 Extension ( Lengkap dengan Pemprograman)", "Unit": "Rp1,264,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.4. Sistem Telepon", "Item": "Pemasangan 1 Unit Terminal Box Telepon", "Unit": "Rp354,600.00", "Price": 354, "Source": "AHSP 2025"},
+    {"Category": "5.4.4. Sistem Telepon", "Item": "Pemasangan 1 Unit Outlet Telepon", "Unit": "Rp167,600.00", "Price": 167, "Source": "AHSP 2025"},
+    {"Category": "5.4.4. Sistem Telepon", "Item": "Pemasangan 1 Unit Instalasi Outlet Telepon", "Unit": "Rp435,300.00", "Price": 435, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Sever / Gateway c/w PC, Monitor, Keyboar, Mouse", "Unit": "Rp7,956,400.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Main Switch HUB 24 Port", "Unit": "Rp1,486,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Main Switch HUB 12 Port", "Unit": "Rp1,139,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Router Broadband", "Unit": "Rp732,900.00", "Price": 732, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Fire Wall + Anti Virus", "Unit": "Rp448,500.00", "Price": 448, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit  Outlet Data", "Unit": "Rp200,000.00", "Price": 200, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Titik Instalasi Outlet Data", "Unit": "Rp432,700.00", "Price": 432, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Patch Cord", "Unit": "Rp59,200.00", "Price": 59, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Patch  Panel 24 Port", "Unit": "Rp739,900.00", "Price": 739, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Wifi Access Ponit ( Wifi 6 Radius 50 m)", "Unit": "Rp1,751,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Switch HUB 8 Port, Unmanaged c/w OTB", "Unit": "Rp1,319,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Touch Screen Panel 7\"", "Unit": "Rp3,002,800.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Touch Screen Panel 10\"", "Unit": "Rp3,244,800.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Touch Screen Panel 12\"", "Unit": "Rp3,856,700.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Touch Screen Panel 14\"", "Unit": "Rp4,219,700.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Wall Mounted Rack 15U", "Unit": "Rp521,000.00", "Price": 521, "Source": "AHSP 2025"},
+    {"Category": "5.4.5 Sistem Data dan Internet", "Item": "Pemasangan 1 Unit Workstation, Meja + Kursi", "Unit": "Rp3,158,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.4.6 Sistem MATV", "Item": "Pemasangan 1 Titik Instalasi TV", "Unit": "Rp1,182,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.4.6 Sistem MATV", "Item": "Pemasangan 1 Unit Splitter TV 6 Port", "Unit": "Rp148,400.00", "Price": 148, "Source": "AHSP 2025"},
+    {"Category": "5.4.6 Sistem MATV", "Item": "Pemasangan 1 Unit Splitter TV 7 Port", "Unit": "Rp177,300.00", "Price": 177, "Source": "AHSP 2025"},
+    {"Category": "5.4.6 Sistem MATV", "Item": "Pemasangan 1 Unit Terminal Box TV", "Unit": "Rp315,500.00", "Price": 315, "Source": "AHSP 2025"},
+    {"Category": "5.4.6 Sistem MATV", "Item": "Pemasangan 1 Unit Antena UHF", "Unit": "Rp275,800.00", "Price": 275, "Source": "AHSP 2025"},
+    {"Category": "5.4.6 Sistem MATV", "Item": "Pemasangan 1 Unit Antena VHF", "Unit": "Rp298,900.00", "Price": 298, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Unit AC Wall Mounted Kap: 5.000 BTUH", "Unit": "Rp4,262,200.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Unit AC Wall Mounted Kap: 6.500 BTUH", "Unit": "Rp5,055,600.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Unit AC Wall Mounted Kap: 7.000 BTUH", "Unit": "Rp5,539,600.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Unit AC Wall Mounted Kap: 9.000 BTUH", "Unit": "Rp5,902,600.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Unit AC Wall Mounted Kap:12.000 BTUH", "Unit": "Rp6,870,600.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Unit AC Wall Mounted Kap:24.000 BTUH", "Unit": "Rp9,843,700.00", "Price": 9, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Unit AC Wall Mounted Kap:35.000 BTUH", "Unit": "Rp13,137,300.00", "Price": 13, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Titik Kabel Power AC NYM 3x2,5 mm2", "Unit": "Rp42,900.00", "Price": 42, "Source": "AHSP 2025"},
+    {"Category": "5.5.1 Pemasangan Unit AC", "Item": "Pemasangan 1 Titik Kabel Kontrol AC NYM 3x2,5 mm2", "Unit": "Rp276,900.00", "Price": 276, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Ceiling Fan : 50 CFM", "Unit": "Rp1,219,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Ceiling Fan : 75 CFM", "Unit": "Rp1,582,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Ceiling Fan : 100 CFM", "Unit": "Rp1,764,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Ceiling Fan : 200 CFM", "Unit": "Rp1,945,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Inline Fan : 500 CFM", "Unit": "Rp2,105,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Inline Fan : 700 CFM", "Unit": "Rp2,633,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Axial Fan : 2.600 CFM", "Unit": "Rp2,196,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Axial Fan : 2.800 CFM", "Unit": "Rp2,301,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Axial Fan : 3.200 CFM", "Unit": "Rp2,479,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Axial Fan : 3.500 CFM", "Unit": "Rp3,030,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Axial Fan : 4.000 CFM", "Unit": "Rp4,371,700.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Axial Fan : 5.500 CFM", "Unit": "Rp4,833,700.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Rotary Fan", "Unit": "Rp1,038,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Ceiling Fan Rotary", "Unit": "Rp1,945,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Bifurcated Fan : 1.500 CFM", "Unit": "Rp11,603,700.00", "Price": 11, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Propeller Fan ; 75 CFM", "Unit": "Rp2,571,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Propeller Fan ; 100 CFM", "Unit": "Rp2,967,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Propeller Fan ; 150 CFM", "Unit": "Rp3,231,200.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Propeller Fan ; 375 CFM", "Unit": "Rp3,768,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Propeller Fan ; 500 CFM", "Unit": "Rp4,688,900.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Propeller Fan ; 600 CFM", "Unit": "Rp5,172,900.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Intake Grille 600x300 mm", "Unit": "Rp147,900.00", "Price": 147, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Intake Grille 650x350 mm", "Unit": "Rp172,100.00", "Price": 172, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Intake Grille 800x350 mm", "Unit": "Rp196,200.00", "Price": 196, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Intake Grille 800x400 mm", "Unit": "Rp214,400.00", "Price": 214, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Intake Louvre 700x400 mm", "Unit": "Rp293,900.00", "Price": 293, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Intake Louvre 750x400 mm", "Unit": "Rp312,000.00", "Price": 312, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Fan Louvre900 x 500", "Unit": "Rp461,400.00", "Price": 461, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Fan Louvre 1.000 x 400 mm", "Unit": "Rp562,400.00", "Price": 562, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Fan Louvre 1.000 x 450 mm", "Unit": "Rp586,600.00", "Price": 586, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Grille 150 x 150 mm", "Unit": "Rp202,300.00", "Price": 202, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Grille 200 x 200 mm", "Unit": "Rp226,500.00", "Price": 226, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Grille 600 x 300 mm", "Unit": "Rp274,900.00", "Price": 274, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Grille 650 x 350 mm", "Unit": "Rp311,200.00", "Price": 311, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Grille 900 x 400 mm", "Unit": "Rp401,900.00", "Price": 401, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Louvre 200 x 200 mm s/d 750 x 350 mm", "Unit": "Rp675,000.00", "Price": 675, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Louvre 800 x 400 mm", "Unit": "Rp739,700.00", "Price": 739, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Louvre 850 x 400 mm & 900 X 500 mm", "Unit": "Rp798,700.00", "Price": 798, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Louvre 1.000 x 400 mm", "Unit": "Rp869,000.00", "Price": 869, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Exhaust Louvre 1.000 x 400 mm & 1.000 x 450 mm", "Unit": "Rp869,000.00", "Price": 869, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Tititk Kabel Powwer Fan NYM 3 x 2,5 mm2", "Unit": "Rp541,700.00", "Price": 541, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Tititk Kabel Kontrol  Fan NYM 3 x 2,5 mm2", "Unit": "Rp276,900.00", "Price": 276, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Proppeller Fan ; 370 CMF", "Unit": "Rp562,400.00", "Price": 562, "Source": "AHSP 2025"},
+    {"Category": "5.5.2 Pemasangan Fan", "Item": "Pemasangan 1 Unit Proppeller Fan ; 1200 CMF", "Unit": "Rp6,128,300.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "5.5.3 Pemasagan Ducting", "Item": "Pemasangan 1 m2 BJLS 50, 60, 70, 80, 100 ( Tanpa Isolasi )", "Unit": "Rp590,200.00", "Price": 590, "Source": "AHSP 2025"},
+    {"Category": "5.5.3 Pemasagan Ducting", "Item": "Pemasangan 1 m2 BJLS 50, 60, 70, 80, 100 ( Isolasi Luar )", "Unit": "Rp614,500.00", "Price": 614, "Source": "AHSP 2025"},
+    {"Category": "5.5.3 Pemasagan Ducting", "Item": "Pemasangan 1 m2 BJLS (50, 60, 70, 80, 100 ( Isolasi Luar  Dalam ))", "Unit": "Rp627,900.00", "Price": 627, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 6,4 mm (1/4\")", "Unit": "Rp102,600.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 9,5 mm (3/8\")", "Unit": "Rp271,900.00", "Price": 271, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 12,7 mm (1/2\")", "Unit": "Rp148,300.00", "Price": 148, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 15,9 mm (5/8\")", "Unit": "Rp284,900.00", "Price": 284, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 19,1 mm (3/4\")", "Unit": "Rp352,900.00", "Price": 352, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 22,2 mm (7/8\")", "Unit": "Rp928,100.00", "Price": 928, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 25,4 mm (1\")", "Unit": "Rp982,100.00", "Price": 982, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 28,6 mm (1-1/8\")", "Unit": "Rp1,002,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 34,9 mm (1-3/8\")", "Unit": "Rp1,030,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m Pipa Tembaga B280 Dia. 41,3 mm (1-5/8\")", "Unit": "Rp824,600.00", "Price": 824, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 1/2\" (15 mm) + Isolasi", "Unit": "Rp29,100.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 3/4\" (20 mm) + Isolasi", "Unit": "Rp39,800.00", "Price": 39, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 1\" (25 mm) + Isolasi", "Unit": "Rp52,500.00", "Price": 52, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 1-1/4\" (32 mm) + Isolasi", "Unit": "Rp73,400.00", "Price": 73, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 1-1/2\" (40 mm) + Isolasi", "Unit": "Rp83,000.00", "Price": 83, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 2\" (50 mm) + Isolasi", "Unit": "Rp110,100.00", "Price": 110, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 2-1/2\" (65 mm) + Isolasi", "Unit": "Rp138,300.00", "Price": 138, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 3\" (80 mm) + Isolasi", "Unit": "Rp183,100.00", "Price": 183, "Source": "AHSP 2025"},
+    {"Category": "5.5.4 Pemasangan Perpipaan", "Item": "Pemasangan 1 m' pipa PVC AW, DN. 4\" (100 mm) + Isolasi", "Unit": "Rp251,000.00", "Price": 251, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasanga 1 Unit PRV Set Dia. 50 mm", "Unit": "Rp8,017,900.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasanga 1 Unit PRV Set Dia. 65 mm", "Unit": "Rp10,948,000.00", "Price": 10, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasanga 1 Unit PRV Set Dia. 80 mm", "Unit": "Rp12,552,300.00", "Price": 12, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasanga 1 Unit PRV Set Dia. 100 mm", "Unit": "Rp20,896,000.00", "Price": 20, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit PRV SET dia. 150 mm", "Unit": "Rp21,516,000.00", "Price": 21, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit PRV SET dia. 200 mm", "Unit": "Rp23,204,800.00", "Price": 23, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit MCV Set dia. 80 mm", "Unit": "Rp29,549,000.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit MCV Set dia. 100 mm", "Unit": "Rp30,198,100.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit MCV Set dia. 150 mm", "Unit": "Rp43,798,800.00", "Price": 43, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit BCV Set dia. 50 mm", "Unit": "Rp4,754,900.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit BCV Set dia. 65 mm", "Unit": "Rp5,009,200.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit BCV Set dia. 80 mm", "Unit": "Rp5,259,600.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit BCV Set dia. 100 mm", "Unit": "Rp5,656,500.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit BCV Set dia. 150 mm", "Unit": "Rp6,004,600.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Automatic Air Vent dia. 50mm", "Unit": "Rp850,900.00", "Price": 850, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Automatic Air Vent dia. 80mm", "Unit": "Rp1,063,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Automatic Air Vent dia. 100mm", "Unit": "Rp1,724,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Automatic Air Vent dia. 150mm", "Unit": "Rp2,126,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Flow Meter Analog dia.100 mm", "Unit": "Rp1,942,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Flow Meter Analog dia.200 mm", "Unit": "Rp2,205,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Landing Velve 2,5\"", "Unit": "Rp1,700,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.6.1 Sistem Perpipaan & aksesoris", "Item": "Pemasangan 1 Unit Orifice Plate dia. 25 mm", "Unit": "Rp1,847,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "5.6.2 Hidran & Springkler", "Item": "Pemasangan 1 unit Sprinkler Head Pendant", "Unit": "Rp129,600.00", "Price": 129, "Source": "AHSP 2025"},
+    {"Category": "5.6.2 Hidran & Springkler", "Item": "Pemasangan 1 unit Sprinkler Head Upright", "Unit": "Rp127,000.00", "Price": 127, "Source": "AHSP 2025"},
+    {"Category": "5.6.2 Hidran & Springkler", "Item": "Pemasangan 1 unit Hydrant Pillar", "Unit": "Rp5,187,900.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "5.6.2 Hidran & Springkler", "Item": "Pemasangan 1 unit Indoor Hydrant Box (IHB)", "Unit": "Rp2,102,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.6.2 Hidran & Springkler", "Item": "Pemasangan 1 unit outdoor Hydrant Box (OHB)", "Unit": "Rp2,966,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.6.2 Hidran & Springkler", "Item": "Pemasangan 1 unit Siamesse Connection", "Unit": "Rp3,052,200.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "5.6.3 APAR", "Item": "Pemasangan 1 unit Fire Extinguisher 3 kg", "Unit": "Rp259,900.00", "Price": 259, "Source": "AHSP 2025"},
+    {"Category": "5.6.3 APAR", "Item": "Pemasangan 1 unit Fire Extinguisher 5 kg", "Unit": "Rp328,200.00", "Price": 328, "Source": "AHSP 2025"},
+    {"Category": "5.6.3 APAR", "Item": "Pemasangan 1 unit Fire Extinguisher 25 kg", "Unit": "Rp2,351,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "5.6.4 Pompa Kebakaran", "Item": "Pemasangan 1 Unit Jockey Fire Pump Vertical Multi Stage, 25 USGPM", "Unit": "Rp11,795,400.00", "Price": 11, "Source": "AHSP 2025"},
+    {"Category": "5.6.4 Pompa Kebakaran", "Item": "Pemasangan 1 Unit Main Fire Pump Centrifugal End Suction, 1.000 USGPM", "Unit": "Rp23,246,300.00", "Price": 23, "Source": "AHSP 2025"},
+    {"Category": "5.6.4 Pompa Kebakaran", "Item": "Pemasangan 1 Unit Diesel Fire Pump Centrifugal End Suction, 1.000 USGPM", "Unit": "Rp29,479,800.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "5.6.4 Pompa Kebakaran", "Item": "Pemasangan 1 Unit Main Fire Pump Centrifugal End Suction, 1.250 USGPM", "Unit": "Rp29,143,900.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "5.6.4 Pompa Kebakaran", "Item": "Pemasangan 1 Unit Diesel Fire Centrifugal Ed Suction, 1.250 USGPM", "Unit": "Rp31,007,200.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 Unit Rof Tank Fiberglass Kap. 2 m3", "Unit": "Rp7,341,200.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit roof tank fiberglass kap. 4 m3", "Unit": "Rp14,850,200.00", "Price": 14, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit roof tank fiberglass kap. 12 m3", "Unit": "Rp44,746,400.00", "Price": 44, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit roof tank stainless kap. 2 m3", "Unit": "Rp8,309,200.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit roof tank stainless kap. 4 m3", "Unit": "Rp19,305,200.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit roof tank stainless kap. 12 m3", "Unit": "Rp61,114,400.00", "Price": 61, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 0,7 m3", "Unit": "Rp1,299,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 1,5 m3", "Unit": "Rp2,176,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 2,5 m3", "Unit": "Rp4,140,200.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 3 m3", "Unit": "Rp5,643,200.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 4 m3", "Unit": "Rp6,440,700.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 5 m3", "Unit": "Rp7,996,100.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 5,5 m3", "Unit": "Rp8,218,300.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 unit tangki toren kap. 6 m3", "Unit": "Rp9,110,700.00", "Price": 9, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 buah Tangki Panel FRP Kap.12 m3", "Unit": "Rp18,544,400.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 buah Tangki Panel Stainless Steel Kap. 12 m3", "Unit": "Rp15,519,400.00", "Price": 15, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 buah Tangki Panel GRP Kap. 12 m3", "Unit": "Rp14,914,400.00", "Price": 14, "Source": "AHSP 2025"},
+    {"Category": "6.1.1 Roof Water Tank", "Item": "Pemasangan 1 buah Tangki Toren Kap. 0,5 m3", "Unit": "Rp794,900.00", "Price": 794, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa transfer 150 lpm; centrifugal end suction", "Unit": "Rp1,500,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa booster 450 lpm; centrifugal end suction", "Unit": "Rp3,561,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa booster 150 lpm; vertical in line-packaged", "Unit": "Rp1,566,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa jet 27 lpm", "Unit": "Rp1,478,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa jet 34 lpm", "Unit": "Rp1,841,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa jet 100 lpm", "Unit": "Rp2,809,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa lift 80 lpm", "Unit": "Rp1,474,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit pompa lift 250 lpm", "Unit": "Rp4,415,400.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.1.2 Pompa Transfer dan Booster", "Item": "Pemasangan 1 unit Pompa Jet 30 lpm", "Unit": "Rp1,273,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.3.1 Filter", "Item": "Pemasangan 1 unit sand filter kap. 0,1 m3 / hari", "Unit": "Rp3,383,100.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.3.1 Filter", "Item": "Pemasangan 1 unit sand filter kap. 14 m3 / hari", "Unit": "Rp8,420,000.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "6.3.1 Filter", "Item": "Pemasangan 1 unit carbon filter kap. 0,1 m3 / hari", "Unit": "Rp1,297,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.3.1 Filter", "Item": "Pemasangan 1 unit carbon filter kap. 0,6 m3 / hari", "Unit": "Rp6,258,500.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.3.1 Filter", "Item": "Pemasangan 1 unit silika filter kap. 0,1 m3 / hari", "Unit": "Rp1,128,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.4 Ground Water Tank (Fiber)", "Item": "Pemasangan 1 set priming tank 500 liter", "Unit": "Rp1,785,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.1.4 Ground Water Tank (Fiber)", "Item": "Pemasangan 1 set priming tank 800 liter", "Unit": "Rp2,685,800.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.1.4 Ground Water Tank (Fiber)", "Item": "Pemasangan 1 set priming tank 1.000 liter", "Unit": "Rp3,586,300.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.1.4 Ground Water Tank (Fiber)", "Item": "Pemasangan 1 set priming tank 2.000 liter", "Unit": "Rp4,936,100.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.1.4 Ground Water Tank (Fiber)", "Item": "Pemasangan 1 set pressure tank 1.000 liter", "Unit": "Rp19,540,400.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "6.2.1 Sewage Treatment Plan (STP) /Biofilter", "Item": "Pemasangan 1 set Sewage Treatment Plant (STP) fiberglass kap. 2 m3", "Unit": "Rp32,851,800.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "6.2.1 Sewage Treatment Plan (STP) /Biofilter", "Item": "Pemasangan 1 set Sewage Treatment Plant (STP) fiberglass kap. 5 m3", "Unit": "Rp56,139,500.00", "Price": 56, "Source": "AHSP 2025"},
+    {"Category": "6.2.1 Sewage Treatment Plan (STP) /Biofilter", "Item": "Pemasangan 1 set Sewage Treatment Plant (STP) fiberglass kap. 10 m3", "Unit": "Rp91,188,500.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "6.2.1 Sewage Treatment Plan (STP) /Biofilter", "Item": "Pemasangan 1 set Sewage Treatment Plant (STP) fiberglass kap. 30 m3", "Unit": "Rp175,172,800.00", "Price": 175, "Source": "AHSP 2025"},
+    {"Category": "6.2.1 Sewage Treatment Plan (STP) /Biofilter", "Item": "Pemasangan 1 set Sewage Treatment Plant (STP) precast kap. 30 m3", "Unit": "Rp116,286,600.00", "Price": 116, "Source": "AHSP 2025"},
+    {"Category": "6.2.1 Sewage Treatment Plan (STP) /Biofilter", "Item": "Pemasangan 1 set Sewage Treatment Plant (STP) Fiberglass kap. 1 m3", "Unit": "Rp165,338,400.00", "Price": 165, "Source": "AHSP 2025"},
+    {"Category": "6.2.2 Bak Pengumpulan  (sump Pit )", "Item": "Pemasangan 1 unit pompa sump pit air kotor 100 m3/jam, submersible cutter pump", "Unit": "Rp9,809,700.00", "Price": 9, "Source": "AHSP 2025"},
+    {"Category": "6.2.3 Grase Trap", "Item": "Pemasangan 1 unit grease trap portable fiberglass, kap. 30 Liter", "Unit": "Rp1,255,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.2.3 Grase Trap", "Item": "Pemasangan 1 unit grease trap portable stainless, kap. 30 Liter", "Unit": "Rp1,819,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.2.3 Grase Trap", "Item": "Pemasangan 1 unit grease trap central fiberglass, kap. 5 m3", "Unit": "Rp23,082,600.00", "Price": 23, "Source": "AHSP 2025"},
+    {"Category": "6.2.4 Sumur Resapan", "Item": "Pemasangan 1 buah Sumur Resapan Air Limbah diameter 80 cm, t=100 cm ( dengan tutup Beton)", "Unit": "Rp1,161,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.2.4 Sumur Resapan", "Item": "Pemasangan 1 buah Sumur Resapan Air Limbah diameter 80 cm, t=100 cm ( tanpa tutup Beton)", "Unit": "Rp1,364,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.3 PEKERJAAN BAK KONTROL", "Item": "Pemasangan 1 buah bak kontrol pas. bata 30x30 cm tinggi 35 cm dengan tutup beton", "Unit": "Rp718,100.00", "Price": 718, "Source": "AHSP 2025"},
+    {"Category": "6.3 PEKERJAAN BAK KONTROL", "Item": "Pemasangan 1 buah bak kontrol pas. bata 45x45 cm tinggi 50 cm dengan tutup beton", "Unit": "Rp1,042,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.3 PEKERJAAN BAK KONTROL", "Item": "Pemasangan 1 buah bak kontrol pas. bata 60x60 cm tinggi 65 cm dengan tutup beton", "Unit": "Rp1,225,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 1/2\" (15 mm)", "Unit": "Rp21,900.00", "Price": 21, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 3/4\" (20 mm)", "Unit": "Rp27,000.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 1\" (25 mm)", "Unit": "Rp34,600.00", "Price": 34, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 1-1/4\" (32 mm)", "Unit": "Rp51,000.00", "Price": 51, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 1-1/2\" (40 mm)", "Unit": "Rp59,500.00", "Price": 59, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 2\" (50 mm)", "Unit": "Rp76,500.00", "Price": 76, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 2-1/2\" (65 mm)", "Unit": "Rp103,300.00", "Price": 103, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 3\" (80 mm)", "Unit": "Rp132,700.00", "Price": 132, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 4\" (100 mm)", "Unit": "Rp180,900.00", "Price": 180, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 5\" (125 mm)", "Unit": "Rp238,800.00", "Price": 238, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 6\" (150 mm)", "Unit": "Rp265,900.00", "Price": 265, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 8\" (200 mm)", "Unit": "Rp337,800.00", "Price": 337, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 10\" (250 mm)", "Unit": "Rp526,300.00", "Price": 526, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 12\" (300 mm)", "Unit": "Rp473,000.00", "Price": 473, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 14\" (350 mm)", "Unit": "Rp538,700.00", "Price": 538, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC AW, DN. 16\" (400 mm)", "Unit": "Rp622,500.00", "Price": 622, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 1-1/4\" (32 mm)", "Unit": "Rp38,000.00", "Price": 38, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 1-1/2\" (40 mm)", "Unit": "Rp43,500.00", "Price": 43, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 2\" (50 mm)", "Unit": "Rp55,700.00", "Price": 55, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 2-1/2\" (65 mm)", "Unit": "Rp73,000.00", "Price": 73, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 3\" (80 mm)", "Unit": "Rp94,400.00", "Price": 94, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 4\" (100 mm)", "Unit": "Rp126,600.00", "Price": 126, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 5\" (125 mm)", "Unit": "Rp179,800.00", "Price": 179, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 6\" (150 mm)", "Unit": "Rp221,200.00", "Price": 221, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 8\" (200 mm)", "Unit": "Rp349,000.00", "Price": 349, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 10\" (250 mm)", "Unit": "Rp527,900.00", "Price": 527, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 12\" (300 mm)", "Unit": "Rp697,900.00", "Price": 697, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 14\" (350 mm)", "Unit": "Rp733,300.00", "Price": 733, "Source": "AHSP 2025"},
+    {"Category": "6.4.1 Pipa PVC", "Item": "Pemasangan 1 m pipa PVC D, DN. 16\" (400 mm)", "Unit": "Rp828,100.00", "Price": 828, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 1/2\" (15 mm)", "Unit": "Rp64,000.00", "Price": 64, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 3/4\" (20 mm)", "Unit": "Rp86,100.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 1\" (25 mm)", "Unit": "Rp117,500.00", "Price": 117, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 1-1/4\" (32 mm)", "Unit": "Rp177,200.00", "Price": 177, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 1-1/2\" (40 mm)", "Unit": "Rp189,200.00", "Price": 189, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 2\" (50 mm)", "Unit": "Rp225,500.00", "Price": 225, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 2-1/2\" (65 mm)", "Unit": "Rp244,200.00", "Price": 244, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 3\" (80 mm)", "Unit": "Rp412,000.00", "Price": 412, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 4\" (100 mm)", "Unit": "Rp580,300.00", "Price": 580, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 5\" (125 mm)", "Unit": "Rp755,900.00", "Price": 755, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 6\" (150 mm)", "Unit": "Rp680,800.00", "Price": 680, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 8\" (200 mm)", "Unit": "Rp955,400.00", "Price": 955, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 10\" (250 mm)", "Unit": "Rp1,047,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 12\" (300 mm)", "Unit": "Rp1,043,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 14\" (350 mm)", "Unit": "Rp1,241,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis MED CLASS, DN. 16\" (400 mm)", "Unit": "Rp1,332,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 1/2\" (15 mm)", "Unit": "Rp83,800.00", "Price": 83, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 3/4\" (20 mm)", "Unit": "Rp105,900.00", "Price": 105, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 1\" (25 mm)", "Unit": "Rp144,700.00", "Price": 144, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 1-1/4\" (32 mm)", "Unit": "Rp189,500.00", "Price": 189, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 1-1/2\" (40 mm)", "Unit": "Rp223,000.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 2\" (50 mm)", "Unit": "Rp382,300.00", "Price": 382, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 2-1/2\" (65 mm)", "Unit": "Rp427,400.00", "Price": 427, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 3\" (80 mm)", "Unit": "Rp715,600.00", "Price": 715, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 4\" (100 mm)", "Unit": "Rp790,600.00", "Price": 790, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 5\" (125 mm)", "Unit": "Rp1,029,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 6\" (150 mm)", "Unit": "Rp1,291,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 8\" (200 mm)", "Unit": "Rp1,951,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 10\" (250 mm", "Unit": "Rp2,584,800.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 12\" (300 mm)", "Unit": "Rp2,802,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 14\" (350 mm)", "Unit": "Rp2,978,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.4.2 Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis SCH 40, DN. 16\" (400 mm)", "Unit": "Rp3,121,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 1/2\" (15 mm)", "Unit": "Rp39,800.00", "Price": 39, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 3/4\" (20 mm)", "Unit": "Rp51,700.00", "Price": 51, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 1\" (25 mm)", "Unit": "Rp74,000.00", "Price": 74, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 1-1/4\" (32 mm)", "Unit": "Rp103,800.00", "Price": 103, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 1-1/2\" (40 mm)", "Unit": "Rp146,500.00", "Price": 146, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 2\" (50 mm)", "Unit": "Rp213,700.00", "Price": 213, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 2-1/2\" (65 mm)", "Unit": "Rp294,800.00", "Price": 294, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 3\" (80 mm)", "Unit": "Rp399,100.00", "Price": 399, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 4\" (100 mm)", "Unit": "Rp590,500.00", "Price": 590, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 10, DN. 6\" (150 mm)", "Unit": "Rp1,821,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 1/2\" (15 mm)", "Unit": "Rp1,700,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 3/4\" (20 mm)", "Unit": "Rp68,500.00", "Price": 68, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 1\" (25 mm)", "Unit": "Rp102,100.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 1-1/4\" (32 mm)", "Unit": "Rp145,600.00", "Price": 145, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 1-1/2\" (40 mm)", "Unit": "Rp211,800.00", "Price": 211, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 2\" (50 mm)", "Unit": "Rp322,600.00", "Price": 322, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 2-1/2\" (65 mm)", "Unit": "Rp444,500.00", "Price": 444, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 3\" (80 mm)", "Unit": "Rp620,500.00", "Price": 620, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 4\" (100 mm)", "Unit": "Rp912,500.00", "Price": 912, "Source": "AHSP 2025"},
+    {"Category": "6.4.3 Pipa PPR (PolyPropylene Random)", "Item": "Pemasangan 1 m pipa PPR PN 20, DN. 6\" (150 mm)", "Unit": "Rp2,919,000.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 1/2\" (15 mm)", "Unit": "Rp69,800.00", "Price": 69, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 3/4\" (20 mm)", "Unit": "Rp90,700.00", "Price": 90, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 1\" (25 mm)", "Unit": "Rp125,300.00", "Price": 125, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 1-1/4\" (32 mm)", "Unit": "Rp159,500.00", "Price": 159, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 1-1/2\" (40 mm)", "Unit": "Rp184,300.00", "Price": 184, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 2\" (50 mm)", "Unit": "Rp246,000.00", "Price": 246, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 2-1/2\" (65 mm)", "Unit": "Rp309,100.00", "Price": 309, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 3\" (80 mm)", "Unit": "Rp404,700.00", "Price": 404, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 4\" (100 mm)", "Unit": "Rp566,900.00", "Price": 566, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 5\" (125 mm)", "Unit": "Rp742,800.00", "Price": 742, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 6\" (150 mm)", "Unit": "Rp884,700.00", "Price": 884, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 8\" (200 mm)", "Unit": "Rp1,453,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 10\" (250 mm)", "Unit": "Rp1,691,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 12\" (300 mm)", "Unit": "Rp1,988,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 14\" (350 mm)", "Unit": "Rp2,414,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS MED CLASS, DN. 16\" (400 mm)", "Unit": "Rp2,759,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 1/2\" (15 mm)", "Unit": "Rp444,100.00", "Price": 444, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 3/4\" (20 mm)", "Unit": "Rp470,000.00", "Price": 470, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 1\" (25 mm)", "Unit": "Rp478,300.00", "Price": 478, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 1-1/4\" (32 mm)", "Unit": "Rp503,900.00", "Price": 503, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 1-1/2\" (40 mm)", "Unit": "Rp530,500.00", "Price": 530, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 2\" (50 mm)", "Unit": "Rp564,900.00", "Price": 564, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 2-1/2\" (65 mm)", "Unit": "Rp599,000.00", "Price": 599, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 3\" (80 mm)", "Unit": "Rp650,200.00", "Price": 650, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 4\" (100 mm)", "Unit": "Rp707,600.00", "Price": 707, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 5\" (125 mm)", "Unit": "Rp764,200.00", "Price": 764, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 6\" (150 mm)", "Unit": "Rp821,600.00", "Price": 821, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 8\" (200 mm)", "Unit": "Rp918,500.00", "Price": 918, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 10\" (250 mm)", "Unit": "Rp1,016,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 12\" (300 mm)", "Unit": "Rp1,113,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 14\" (350 mm)", "Unit": "Rp1,211,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.4 Pipa BS (Black Steel)", "Item": "Pemasangan 1 m pipa BS SCH 40, DN. 16\" (400 mm)", "Unit": "Rp1,308,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.4.5 Pipa Tanah", "Item": "Pemasangan 1 mâ Pipa Air Limbah Jenis Pipa Tanah, DN. 6\" (150 mm)", "Unit": "Rp354,900.00", "Price": 354, "Source": "AHSP 2025"},
+    {"Category": "6.4.5 Pipa Tanah", "Item": "Pemasangan 1 mâ Pipa Air Limbah Jenis Pipa Tanah, DN. 8\" (200 mm)", "Unit": "Rp455,900.00", "Price": 455, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10,16,20) K, dia. 1/2\" (15 mm)", "Unit": "Rp1,924,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16) K, dia. 3/4\" (20 mm)", "Unit": "Rp2,190,600.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16, 20) K, dia. 1\" (25 mm)", "Unit": "Rp2,456,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16) K, dia. 1-1/4\" (32 mm)", "Unit": "Rp2,658,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16) K, dia. 1-1/2\" (40 mm)", "Unit": "Rp2,768,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16, 20) K, dia. 2\" (50 mm)", "Unit": "Rp3,034,300.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16, 20)K, dia. 2-1/2\" (65 mm)", "Unit": "Rp3,263,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16, 25) K, dia. 3\" (80 mm)", "Unit": "Rp4,173,500.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16, 25) K, dia. 4\" (100 mm)", "Unit": "Rp4,605,500.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16) K, dia. 5\" (125 mm)", "Unit": "Rp5,050,300.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 12, 16, 25)K, dia. 6\" (150 mm)", "Unit": "Rp5,588,300.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16) K, dia. 8\" (200 mm)", "Unit": "Rp6,292,300.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16) K, dia. 10\" (250 mm)", "Unit": "Rp6,825,000.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.1 Gate Valve (10, 12, 16, 20, 25) K", "Item": "Pemasangan 1 buah gate velve (10, 16) K, dia. 12\" (300 mm)", "Unit": "Rp7,427,600.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia. 1/2\" (15 mm)", "Unit": "Rp58,300.00", "Price": 58, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia. 3/4\" (20 mm)", "Unit": "Rp86,600.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia. 1\" (25 mm)", "Unit": "Rp111,700.00", "Price": 111, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia. 1-1/4\" (32 mm)", "Unit": "Rp151,600.00", "Price": 151, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia. 1-1/2\" (40 mm)", "Unit": "Rp180,100.00", "Price": 180, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia.2\" (50 mm)", "Unit": "Rp255,100.00", "Price": 255, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia.2-1/2\" (65 mm)", "Unit": "Rp316,000.00", "Price": 316, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia.3\" (80 mm)", "Unit": "Rp548,500.00", "Price": 548, "Source": "AHSP 2025"},
+    {"Category": "6.5.2 Ball Velve", "Item": "Pemasangan 1 buah ball velve, Dia.4\" (100 mm)", "Unit": "Rp656,200.00", "Price": 656, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve 10 K, Dia. 1/2\" (15 mm)", "Unit": "Rp76,100.00", "Price": 76, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve 10 K, Dia. 3/4\" (20 mm)", "Unit": "Rp114,800.00", "Price": 114, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve 10 K, Dia. 1\" (25 mm)", "Unit": "Rp165,200.00", "Price": 165, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve 10 K, Dia. 1-1/4\" (32 mm)", "Unit": "Rp206,000.00", "Price": 206, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve 10 K, Dia. 1-1/2\" (40 mm)", "Unit": "Rp268,600.00", "Price": 268, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10, 16) K, Dia. 2\" (50 mm)", "Unit": "Rp378,400.00", "Price": 378, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10,16) K, Dia. 2-1/2\" (65 mm)", "Unit": "Rp467,800.00", "Price": 467, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10,16) K, Dia. 3\" (80 mm)", "Unit": "Rp1,080,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10,16) K, Dia. 4\" (100 mm)", "Unit": "Rp2,381,800.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10, 16) K, Dia. 5\" (125 mm)", "Unit": "Rp4,335,300.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10, 16) K, Dia. 6\" (150 mm)", "Unit": "Rp4,844,700.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10, 16) K, Dia. 8\" (200 mm)", "Unit": "Rp5,605,900.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10,16)  K, Dia. 10\" (250 mm)", "Unit": "Rp6,067,100.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.3 Check Velve", "Item": "Pemasangan 1 buah Check Velve (10, 16) K, Dia. 12\" (300 mm)", "Unit": "Rp6,641,100.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer 10 K, Dia. 1/2 \" (15 mm)", "Unit": "Rp72,300.00", "Price": 72, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer 10 K, Dia. 3/4 \" (20 mm)", "Unit": "Rp99,600.00", "Price": 99, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer 10 K, Dia. 1 \" (25 mm)", "Unit": "Rp128,000.00", "Price": 128, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer 10 K, Dia. 1-1/4 \" (32 mm)", "Unit": "Rp186,500.00", "Price": 186, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer 10 K, Dia. 1-1/2 \" (40 mm)", "Unit": "Rp261,100.00", "Price": 261, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 2 \" (50 mm)", "Unit": "Rp489,900.00", "Price": 489, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 2-1/2 \" (65 mm)", "Unit": "Rp658,300.00", "Price": 658, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 3 \" (80 mm)", "Unit": "Rp1,030,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 4\" (100 mm)", "Unit": "Rp1,480,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 5\" (125 mm)", "Unit": "Rp1,651,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 6\" (150 mm)", "Unit": "Rp1,871,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 8\" (200 mm)", "Unit": "Rp2,445,600.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 10\" (250 mm)", "Unit": "Rp3,006,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer (10, 16) K, Dia. 12\" (300 mm)", "Unit": "Rp3,352,100.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.4 Strainer", "Item": "Pemasangan 1 buah strainer 10 K, Dia. 14\" (350 mm)", "Unit": "Rp3,728,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia 1/2\" ( 15 mm)", "Unit": "Rp306,300.00", "Price": 306, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia 3/4\" ( 20 mm)", "Unit": "Rp356,400.00", "Price": 356, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia 1\" ( 25 mm)", "Unit": "Rp527,800.00", "Price": 527, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve Dia. 1-1/4 \" (32 mm)", "Unit": "Rp679,100.00", "Price": 679, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 1-1/2 \" (40 mm)", "Unit": "Rp877,100.00", "Price": 877, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buahFloater Velve, Dia. 2 \" (50 mm)", "Unit": "Rp1,206,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 2-1/2 \" (65 mm)", "Unit": "Rp1,372,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 3 \" (80 mm)", "Unit": "Rp1,914,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 4\" (100 mm)", "Unit": "Rp2,281,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 5\" (125 mm)", "Unit": "Rp2,576,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 6\" (150 mm)", "Unit": "Rp2,971,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 8\" (200 mm)", "Unit": "Rp3,446,600.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 10\" (250 mm)", "Unit": "Rp3,850,600.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.5 Floater Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 12\" (300 mm)", "Unit": "Rp4,510,400.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia 1/2\" ( 15 mm)", "Unit": "Rp53,900.00", "Price": 53, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia 3/4\" ( 20 mm)", "Unit": "Rp127,900.00", "Price": 127, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia 1\" ( 25 mm)", "Unit": "Rp527,800.00", "Price": 527, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Floater Velve Dia. 1-1/4 \" (32 mm)", "Unit": "Rp679,100.00", "Price": 679, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 1-1/2 \" (40 mm)", "Unit": "Rp877,100.00", "Price": 877, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 2 \" (50 mm)", "Unit": "Rp524,900.00", "Price": 524, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 2-1/2 \" (65 mm)", "Unit": "Rp572,800.00", "Price": 572, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 3 \" (80 mm)", "Unit": "Rp1,111,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 4\" (100 mm)", "Unit": "Rp1,566,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 5\" (125 mm)", "Unit": "Rp1,719,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 6\" (150 mm)", "Unit": "Rp1,991,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Floater Velve, Dia. 8\" (200 mm)", "Unit": "Rp2,524,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 10\" (250 mm)", "Unit": "Rp2,985,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 12\" (300 mm)", "Unit": "Rp3,452,200.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.6 Foot Velve", "Item": "Pemasangan 1 buah Foot Velve, Dia. 14\" (350 mm)", "Unit": "Rp3,957,300.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 10 K, Dia 1/2\" ( 15 mm)", "Unit": "Rp69,200.00", "Price": 69, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 10 K, Dia 3/4\" ( 20 mm)", "Unit": "Rp99,000.00", "Price": 99, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 10 K, Dia 1\" ( 25 mm)", "Unit": "Rp164,100.00", "Price": 164, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 10 K, Dia. 1-1/4 \" (32 mm)", "Unit": "Rp189,300.00", "Price": 189, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 10 K, Dia. 1-1/2 \" (40 mm)", "Unit": "Rp213,900.00", "Price": 213, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 2 \" (50 mm)", "Unit": "Rp278,500.00", "Price": 278, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 2-1/2 \" (65 mm)", "Unit": "Rp332,300.00", "Price": 332, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 3 \" (80 mm)", "Unit": "Rp477,500.00", "Price": 477, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 4\" (100 mm)", "Unit": "Rp837,400.00", "Price": 837, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 5\" (125 mm)", "Unit": "Rp1,462,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 6\" (150 mm)", "Unit": "Rp1,823,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 8\" (200 mm)", "Unit": "Rp2,146,600.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 10\" (250 mm)", "Unit": "Rp2,728,000.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 10 K, Dia. 12\" (300 mm)", "Unit": "Rp3,243,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 20 K, Dia. 12\" (300 mm)", "Unit": "Rp3,363,600.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.7 Flexible Joint", "Item": "Pemasangan 1 buah Flexible Joint 20 K, Dia. 14\" (350 mm)", "Unit": "Rp3,907,300.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 2\" (50 mm)", "Unit": "Rp278,000.00", "Price": 278, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 2-1/2 \" (65 mm)", "Unit": "Rp348,500.00", "Price": 348, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 3 \" (80 mm)", "Unit": "Rp636,300.00", "Price": 636, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 4\" (100 mm)", "Unit": "Rp756,800.00", "Price": 756, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Buttefly Velve, Dia. 5\" (125 mm)", "Unit": "Rp1,139,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 6\" (150 mm)", "Unit": "Rp1,669,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 8\" (200 mm)", "Unit": "Rp2,595,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 10\" (250 mm)", "Unit": "Rp3,391,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 12\" (300 mm)", "Unit": "Rp3,948,100.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.8 Butterfly Velve", "Item": "Pemasangan 1 buah Butterfly Velve, Dia. 12\" (300 mm)", "Unit": "Rp4,068,300.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 1/2\" (15 mm)", "Unit": "Rp158,900.00", "Price": 158, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia 3/4\" ( 20 mm)", "Unit": "Rp189,400.00", "Price": 189, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia 1\" ( 25 mm)", "Unit": "Rp231,100.00", "Price": 231, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 1-1/4 \" (32 mm)", "Unit": "Rp305,800.00", "Price": 305, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 1-1/2 \" (40 mm)", "Unit": "Rp400,100.00", "Price": 400, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 2 \" (50 mm)", "Unit": "Rp1,328,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 2-1/2 \" (65 mm)", "Unit": "Rp1,668,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 3 \" (80 mm)", "Unit": "Rp2,490,500.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 4\" (100 mm)", "Unit": "Rp3,356,200.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Flexible Joint (10, 20) K, Dia. 5\" (125 mm)", "Unit": "Rp5,965,500.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 6\" (150 mm)", "Unit": "Rp7,627,500.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.5.9 Globe Velve", "Item": "Pemasangan 1 buah Globe Velve, Dia. 8\" (200 mm)", "Unit": "Rp8,852,000.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "6.5.10 Pressure Gauge", "Item": "Pemasangan 1 buah Pressure Gauge (16,25, 40) K + Gate Velve, Dia. 1/2\" (15 mm)", "Unit": "Rp1,750,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.10 Pressure Gauge", "Item": "Pemasangan 1 buah Pressure Gauge (16, 25, 40) K + Gate Valve, Dia 1\" ( 25 mm)", "Unit": "Rp2,244,400.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.10 Pressure Gauge", "Item": "Pemasangan 1 buah Pressure Gauge (16, 25) K + Gate Valve, Dia. 2 \" (50 mm)", "Unit": "Rp2,807,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.10 Pressure Gauge", "Item": "Pemasangan 1 buah Pressure Gauge + Gate Valve, Dia. 3 \" (80 mm)", "Unit": "Rp3,502,500.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.10 Pressure Gauge", "Item": "Pemasangan 1 buah Pressure Gauge 16 K + Gate Vave, Dia. 4\" (100 mm)", "Unit": "Rp3,929,600.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.10 Pressure Gauge", "Item": "Pemasangan 1 buah Pressure Gauge 25 K +Gate Valve, Dia. 4\" (100 mm)", "Unit": "Rp3,848,000.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.10 Pressure Gauge", "Item": "Pemasangan 1 buah Pressure Gauge 25 K + Gate Valve, Dia. 3\" (80 mm)", "Unit": "Rp3,584,200.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 1/2\" (15 mm)", "Unit": "Rp369,200.00", "Price": 369, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 3/4\" (20 mm)", "Unit": "Rp869,900.00", "Price": 869, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia 1\" ( 25 mm)", "Unit": "Rp1,845,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia 1-1/2\" ( 40 mm)", "Unit": "Rp2,282,000.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 2 \" (50 mm)", "Unit": "Rp3,131,700.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 3 \" (80 mm)", "Unit": "Rp4,102,000.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 4\" (100 mm)", "Unit": "Rp4,584,000.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 6\" (150 mm)", "Unit": "Rp5,546,700.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 8\" (200 mm)", "Unit": "Rp6,288,100.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 10\" (250 mm)", "Unit": "Rp6,854,900.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 12\" (300 mm)", "Unit": "Rp7,484,800.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Water Meter, Dia. 16\" (400 mm)", "Unit": "Rp7,934,000.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.5.11 Water Meter", "Item": "Pemasangan 1 buah Flow Meter Analog 10 K, Dia. 4\" (100 mm)", "Unit": "Rp3,824,700.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "6.5.12. Clean Out", "Item": "Pemasangan 1 buah Clean Out, Dia. 2\" (50 mm)", "Unit": "Rp105,600.00", "Price": 105, "Source": "AHSP 2025"},
+    {"Category": "6.5.12. Clean Out", "Item": "Pemasangan 1 buah Clean Out, Dia. 2-1/2\" (65 mm)", "Unit": "Rp127,500.00", "Price": 127, "Source": "AHSP 2025"},
+    {"Category": "6.5.12. Clean Out", "Item": "Pemasangan 1 buah Clean Out, Dia. 3\" (80 mm)", "Unit": "Rp172,300.00", "Price": 172, "Source": "AHSP 2025"},
+    {"Category": "6.5.12. Clean Out", "Item": "Pemasangan 1 buah Clean Out, Dia. 4\" (100 mm)", "Unit": "Rp212,500.00", "Price": 212, "Source": "AHSP 2025"},
+    {"Category": "6.5.12. Clean Out", "Item": "Pemasangan 1 buah Clean Out, Dia. 5\" (125 mm)", "Unit": "Rp372,300.00", "Price": 372, "Source": "AHSP 2025"},
+    {"Category": "6.5.12. Clean Out", "Item": "Pemasangan 1 buah Clean Out, Dia. 6\" (150 mm)", "Unit": "Rp466,700.00", "Price": 466, "Source": "AHSP 2025"},
+    {"Category": "6.5.12. Clean Out", "Item": "Pemasangan 1 buah Clean Out, Dia. 8\" (200 mm)", "Unit": "Rp697,200.00", "Price": 697, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 2\" (50 mm)", "Unit": "Rp111,600.00", "Price": 111, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 2-1/2\" (65 mm)", "Unit": "Rp135,200.00", "Price": 135, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 3\" (80 mm)", "Unit": "Rp157,800.00", "Price": 157, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 4\" (100 mm)", "Unit": "Rp192,700.00", "Price": 192, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 5\" (125 mm)", "Unit": "Rp246,900.00", "Price": 246, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 6\" (150 mm)", "Unit": "Rp295,300.00", "Price": 295, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 8\" (200 mm)", "Unit": "Rp405,500.00", "Price": 405, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 10\" (200 mm)", "Unit": "Rp547,600.00", "Price": 547, "Source": "AHSP 2025"},
+    {"Category": "6.5.13 Roof Drain", "Item": "Pemasangan 1 buahRoof Drain, Dia. 12\" (300 mm)", "Unit": "Rp651,600.00", "Price": 651, "Source": "AHSP 2025"},
+    {"Category": "6.5.14 Floor Clean Out (fCO)", "Item": "Pemasangan 1 buah Floor Clean Out, Dia. 2\" (50 mm)", "Unit": "Rp243,700.00", "Price": 243, "Source": "AHSP 2025"},
+    {"Category": "6.5.14 Floor Clean Out (fCO)", "Item": "Pemasangan 1 buah Floor Clean Out, Dia. 2-1/2\" (65 mm)", "Unit": "Rp312,800.00", "Price": 312, "Source": "AHSP 2025"},
+    {"Category": "6.5.14 Floor Clean Out (fCO)", "Item": "Pemasangan 1 buah Floor Clean Out, Dia. 3\" (80 mm)", "Unit": "Rp380,700.00", "Price": 380, "Source": "AHSP 2025"},
+    {"Category": "6.5.14 Floor Clean Out (fCO)", "Item": "Pemasangan 1 buah Floor Clean Out, Dia. 4\" (100 mm)", "Unit": "Rp550,300.00", "Price": 550, "Source": "AHSP 2025"},
+    {"Category": "6.5.14 Floor Clean Out (fCO)", "Item": "Pemasangan 1 buah Floor Clean Out, Dia. 6\" (150 mm)", "Unit": "Rp782,600.00", "Price": 782, "Source": "AHSP 2025"},
+    {"Category": "6.5.14 Floor Clean Out (fCO)", "Item": "Pemasangan 1 buah Floor Clean Out, Dia. 8\" (200 mm)", "Unit": "Rp979,300.00", "Price": 979, "Source": "AHSP 2025"},
+    {"Category": "6.5.15 Vent Cap", "Item": "Pemasangan 1 buah Vent Cap, Dia 2\" (50 mm)", "Unit": "Rp102,600.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "6.5.15 Vent Cap", "Item": "Pemasangan 1 buah Vent Cap, Dia 3\" (80 mm)", "Unit": "Rp172,300.00", "Price": 172, "Source": "AHSP 2025"},
+    {"Category": "6.5.15 Vent Cap", "Item": "Pemasangan 1 buah Vent Cap, Dia 4\" (100 mm)", "Unit": "Rp223,600.00", "Price": 223, "Source": "AHSP 2025"},
+    {"Category": "6.5.16 Pressure Recude Velve (PRV)", "Item": "Pemasangan 1 buah PRV, Dia 2\" (50 mm)", "Unit": "Rp6,465,000.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.16 Pressure Recude Velve (PRV)", "Item": "Pemasangan 1 buah PRV, Dia 2-1/2\" (65 mm)", "Unit": "Rp7,092,800.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.5.16 Pressure Recude Velve (PRV)", "Item": "Pemasangan 1 buah PRV Dia 3\" (80 mm)", "Unit": "Rp11,115,600.00", "Price": 11, "Source": "AHSP 2025"},
+    {"Category": "6.5.16 Pressure Recude Velve (PRV)", "Item": "Pemasangan 1 buah PRV Dia 4\" (100 mm)", "Unit": "Rp12,605,700.00", "Price": 12, "Source": "AHSP 2025"},
+    {"Category": "6.5.16 Pressure Recude Velve (PRV)", "Item": "Pemasangan 1 buah PRV Dia 6\" (150 mm)", "Unit": "Rp13,558,100.00", "Price": 13, "Source": "AHSP 2025"},
+    {"Category": "6.5.16 Pressure Recude Velve (PRV)", "Item": "Pemasangan 1 buah PRV Dia 8\" (200 mm)", "Unit": "Rp14,523,400.00", "Price": 14, "Source": "AHSP 2025"},
+    {"Category": "6.5.17 Automatic Air Vent (AAV)", "Item": "Pemasangan 1 buah Automatic Air Vent, Dia. 1/2\" (15 mm)", "Unit": "Rp328,400.00", "Price": 328, "Source": "AHSP 2025"},
+    {"Category": "6.5.17 Automatic Air Vent (AAV)", "Item": "Pemasangan 1 buah Automatic Air Vent, Dia. 1\" (25 mm)", "Unit": "Rp1,099,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.17 Automatic Air Vent (AAV)", "Item": "Pemasangan 1 buah Automatic Air Vent, Dia. 2\" (50 mm)", "Unit": "Rp1,376,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.17 Automatic Air Vent (AAV)", "Item": "Pemasangan 1 buah Automatic Air Vent, Dia. 3\" (80 mm)", "Unit": "Rp1,650,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.17 Automatic Air Vent (AAV)", "Item": "Pemasangan 1 buah Automatic Air Vent, Dia. 4\" (100 mm)", "Unit": "Rp1,936,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "6.5.17 Automatic Air Vent (AAV)", "Item": "Pemasangan 1 buah Automatic Air Vent, Dia. 6\" (150 mm)", "Unit": "Rp2,277,600.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.18 Vent Out", "Item": "Pemasangan 1 buah Vent Out, Dia. 2\" (50 mm)", "Unit": "Rp342,400.00", "Price": 342, "Source": "AHSP 2025"},
+    {"Category": "6.5.19 Water Level Control (WLC) & Pengkabelan", "Item": "Pemasangan 1 buah Vent OutWLC & Pengkabelan", "Unit": "Rp191,700.00", "Price": 191, "Source": "AHSP 2025"},
+    {"Category": "6.5.20 Pressure Switch", "Item": "Pemasangan 1 buah Pressure Switch", "Unit": "Rp320,600.00", "Price": 320, "Source": "AHSP 2025"},
+    {"Category": "6.5.21 Header Pipa PVC", "Item": "Pemasangan 1 m Header Pipa PVC AW, Dia. 4\" ( 100 mm)", "Unit": "Rp2,019,600.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "6.5.22 Header Pipa Galvanis MED Class", "Item": "Pemasangan 1 m Header Pipa Galvanis Medd Class, Dia. 4\" ( 100 mm)", "Unit": "Rp8,942,800.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "6.5.23 Header Pipa Black Steel (BS)", "Item": "Pemasangan 1 m Header Pipa BS SCH 40, Dia. 8\" ( 200 mm)", "Unit": "Rp6,027,900.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "6.5.23 Header Pipa Black Steel (BS)", "Item": "Pemasangan 1 m Header Pipa BS SCH 40, Dia. 10\" ( 250 mm)", "Unit": "Rp7,884,200.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "6.5.24 Dop PVC", "Item": "Pemasangan 1 buah DOP PVC dia. 3\" (80 mm)", "Unit": "Rp36,400.00", "Price": 36, "Source": "AHSP 2025"},
+    {"Category": "6.5.24 Dop PVC", "Item": "Pemasangan 1 buah DOP PVC dia. 4\" (100 mm)", "Unit": "Rp55,000.00", "Price": 55, "Source": "AHSP 2025"},
+    {"Category": "6.5.24 Dop PVC", "Item": "Pemasangan 1 buah DOP PVC dia. 6\" (150 mm)", "Unit": "Rp82,500.00", "Price": 82, "Source": "AHSP 2025"},
+    {"Category": "6.6.1 Sumur Resapan", "Item": "Pembuatan 1 buah sumur Resapan Air Hujan diameter 80 cm, t=100 cm", "Unit": "Rp513,300.00", "Price": 513, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 6 cm fc'20 Mpa dan Pengunci Uskup untuk Jalan Lingkungan (Jalan Lokal) Secara Manual", "Unit": "Rp158,400.00", "Price": 158, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 6 cm fc'25 Mpa dan Pengunci Uskup untuk Jalan Lakses/Penghubug (Jalan Kolektor) Secara Manual", "Unit": "Rp172,300.00", "Price": 172, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 6 cm fc'20 Mpa dan Pengunci Uskup untuk Jalan Lingkungan (Jalan Lokal) Secara semi mekanis", "Unit": "Rp137,000.00", "Price": 137, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 6 cm fc'25 Mpa dan Pengunci Uskup untuk Jalan Lingkungan (Jalan Lokal) Secara semi mekanis", "Unit": "Rp150,800.00", "Price": 150, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 8 cm fc'20 Mpa dan Pengunci Topi Uskup untuk Jalan Lingkungan (Jalan Lokal) Secara manual", "Unit": "Rp190,700.00", "Price": 190, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 8 cm fc'25 Mpa dan Pengunci Topi Uskup untuk Jalan akses/penghubung (Jalan kolektor) Secara manual", "Unit": "Rp204,600.00", "Price": 204, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 8 cm fc'20 Mpa dan Pengunci Topi Uskup untuk Jalan Lingkungan (Jalan Lokal) Secara semi mekanis", "Unit": "Rp181,600.00", "Price": 181, "Source": "AHSP 2025"},
+    {"Category": "7.1.1 Pemasangan Paving Block", "Item": "Pemasangan 1 m2 Paving Block (Blok Beton) Natural Tebal 8 cm fc'25 Mpa dan Pengunci Topi Uskup untuk Jalan Akses/Penghubung  (Jalan Kolektor) Secara semi mekanis", "Unit": "Rp183,600.00", "Price": 183, "Source": "AHSP 2025"},
+    {"Category": "7.1.2 Pemasangan Kanstin", "Item": "Pemasangan 1 m' Kanstin, Tebal 10x20x40 cm dengan kupingan untuk jalan Lingkungan (Jalan Lokal)", "Unit": "Rp88,700.00", "Price": 88, "Source": "AHSP 2025"},
+    {"Category": "7.1.2 Pemasangan Kanstin", "Item": "Pemasangan 1 m' Kanstin, Tebal 15x40x460 cm dengan kupingan untuk jalan Akses/penghubung (Jalan Kolektor)", "Unit": "Rp186,300.00", "Price": 186, "Source": "AHSP 2025"},
+    {"Category": "7.1.2 Pemasangan Kanstin", "Item": "Pemasangan 1 m' Kanstin, Tebal 10x20x40 cm tanpa kupingan untuk jalan Lingkungan (Jalan Lokal)", "Unit": "Rp86,900.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "7.1.2 Pemasangan Kanstin", "Item": "Pemasangan 1 m' Kanstin, Tebal 15x40x460 cm Tanpa kupingan untuk jalan Akses/penghubung (Jalan Kolektor)", "Unit": "Rp184,800.00", "Price": 184, "Source": "AHSP 2025"},
+    {"Category": "7.2.1 Pembuatan Beton Kurus", "Item": "1 m3 Beton Kurus fc 10 Mpa untuk Jalan Lingkungan (Jalan Lokal) Semi Mekanis", "Unit": "Rp1,966,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "7.2.1 Pembuatan Beton Kurus", "Item": "1 m3 Beton Kurus fc 10 Mpa untuk Jalan Akses/Penghubung (Jalan Kolektor) Semi Mekanis", "Unit": "Rp1,719,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "7.2.1 Pembuatan Beton Kurus", "Item": "1 m3 Beton Kurus fc 10 Mpa untuk JalanLingkungan (Jalan Lokal) Ready Mixed", "Unit": "Rp1,558,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "7.2.1 Pembuatan Beton Kurus", "Item": "1 m3 Beton Kurus fc 10 Mpa untuk Jalan Akses / penghubung  (Jalan Kolektor) Ready Mixed", "Unit": "Rp1,681,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "7.2.2 Pembuatan Perkerasan Beton", "Item": "1 m3Perkerasan Beton Sc 3,5 Mpa (Setara Fc 25 Mpa) untuk Jalan Lingkungan (Jalan Lokal) Semi Mekanis", "Unit": "Rp2,221,800.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "7.2.2 Pembuatan Perkerasan Beton", "Item": "1 m3 Perkerasan Beton Sc 3,8 Mpa (Setara Fc 30 Mpa) untuk Jalan Akses/Penghubung (Jalan Kolektor) Semi Mekanis", "Unit": "Rp2,991,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "7.2.2 Pembuatan Perkerasan Beton", "Item": "1 m3 Perkerasan Beton Sc 3,5 Mpa (Setara Fc 25 Mpa) untuk Jalan Lingkungan (Jalan Lokal) Ready Mixed", "Unit": "Rp1,782,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "7.2.2 Pembuatan Perkerasan Beton", "Item": "1 m3 Perkerasan Beton Sc 3,8 Mpa (Setara Fc 30 Mpa) untuk Jalan Akses/Penghubung (Jalan Jalan Kolektor) Ready Mixed", "Unit": "Rp2,513,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "7.3 Jalan Aspal", "Item": "1 Ton Pekerjaan Lapisan Antara (AC-BC)", "Unit": "Rp1,585,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "7.3 Jalan Aspal", "Item": "1 Ton Pekerjaan Lapisan Aus (AC-WC)", "Unit": "Rp1,832,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m' Saluran U-Ditch 30x30x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp452,500.00", "Price": 452, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 30x40x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp501,000.00", "Price": 501, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 40x40x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp570,100.00", "Price": 570, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 50x50x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp609,500.00", "Price": 609, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 40x60x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp649,600.00", "Price": 649, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 50x50x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp696,100.00", "Price": 696, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 50x60x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp821,700.00", "Price": 821, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 50x70x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp849,800.00", "Price": 849, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 60x60x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp913,400.00", "Price": 913, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 60x70x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp932,100.00", "Price": 932, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 60x80x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp964,300.00", "Price": 964, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 80x60x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,011,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 80x80x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,161,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 80x100x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,209,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 100x100x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,273,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 100x120x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,303,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 120x120x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,429,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 120x140x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,461,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 140x140x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,611,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 150x100x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,553,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 150x150x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,671,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 150x170x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,692,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 160x160x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,739,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 160x180x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,776,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 180x180x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,830,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 180x200x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,867,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.1 Saluran U-Ditch dengan Lantai Kerja 10 Mpa", "Item": "1 m Saluran U-Ditch 200x200x120 cm dengan lantai kerja fc 10 Mpa", "Unit": "Rp2,040,600.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 30x30x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp444,000.00", "Price": 444, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 30x40x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp492,500.00", "Price": 492, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 40x40x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp559,100.00", "Price": 559, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 40x50x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp598,500.00", "Price": 598, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 40x60x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp638,600.00", "Price": 638, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 50x50x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp682,700.00", "Price": 682, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 50x60x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp808,500.00", "Price": 808, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 50x70x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp836,400.00", "Price": 836, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 60x60x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp898,300.00", "Price": 898, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 60x70x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp917,000.00", "Price": 917, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 60x80x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp949,200.00", "Price": 949, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 80x60x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp993,000.00", "Price": 993, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 80x80x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,142,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 80x100x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,190,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 100x100x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,251,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 100x120x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,280,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 120x120x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,403,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 120x140x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,435,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 140x140x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,580,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 150x100x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,520,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 150x150x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,639,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 150x170x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,660,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 160x160x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,705,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 160x180x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,743,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 180x180x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,792,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 180x200x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,829,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.2 Saluran U-Ditch dengan Lantai Kerja 7,5 Mpa", "Item": "1 m Saluran U-Ditch 200x200x120 cm dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,982,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 39x60x6 (Tipe LD) untuk 30x30x120 cm", "Unit": "Rp140,900.00", "Price": 140, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 51x60x7 (Tipe LD) untuk 40x40x120 cm", "Unit": "Rp203,800.00", "Price": 203, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 62x60x7,5 (Tipe LD) untuk 50x50x120 cm", "Unit": "Rp251,700.00", "Price": 251, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 73x60x8 (Tipe LD) untuk 60x60x120 cm", "Unit": "Rp329,100.00", "Price": 329, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 94x60x8 (Tipe LD) untuk 80x80x120 cm", "Unit": "Rp382,900.00", "Price": 382, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 39x60x9 (Tipe HD) untuk 30x30x120 cm", "Unit": "Rp247,600.00", "Price": 247, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 51x60x10 (Tipe HD) untuk 40x40x120 cm", "Unit": "Rp347,200.00", "Price": 347, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 62x60x13 (Tipe HD) untuk 50x50x120 cm", "Unit": "Rp380,200.00", "Price": 380, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 73x60x14 (Tipe HD) untuk 60x60x120 cm", "Unit": "Rp495,200.00", "Price": 495, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Tutup U-Ditch 94x60x15 (Tipe HD) untuk 80x80x120 cm", "Unit": "Rp761,200.00", "Price": 761, "Source": "AHSP 2025"},
+    {"Category": "8.1.3 Tutup U-Ditch", "Item": "1 m' Grill Penutup Saluran, Besi Siku+Plat Strip", "Unit": "Rp293,300.00", "Price": 293, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton 1/2 D 30-100 cm", "Unit": "Rp125,500.00", "Price": 125, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton 1/2 D 40-100 cm", "Unit": "Rp153,400.00", "Price": 153, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton 1/2 D 50-100 cm", "Unit": "Rp165,100.00", "Price": 165, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton 1/2 D 60-100 cm", "Unit": "Rp213,400.00", "Price": 213, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton 1/2 D 80-100 cm", "Unit": "Rp436,100.00", "Price": 436, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton 1/2 D 100-100 cm", "Unit": "Rp545,100.00", "Price": 545, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton  D 30-100 cm", "Unit": "Rp120,100.00", "Price": 120, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton D 40-100 cm", "Unit": "Rp203,800.00", "Price": 203, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton D 50-100 cm", "Unit": "Rp226,300.00", "Price": 226, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton D 60-100 cm", "Unit": "Rp384,000.00", "Price": 384, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton D 80-100 cm", "Unit": "Rp702,000.00", "Price": 702, "Source": "AHSP 2025"},
+    {"Category": "8.2 Saluran Buis Beton", "Item": "1 m' Buis Beton D 100-100 cm", "Unit": "Rp756,400.00", "Price": 756, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 40x40x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,232,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 50x50x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp1,789,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 60x60x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp2,266,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 80x80x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp3,653,200.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 100x100x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp4,505,100.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 150x150x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp5,269,200.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 200x200x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp6,135,500.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "8.3.1 Saluran Box Culvert  dengan lantai kerja 10 Mpa", "Item": "1 m' Box Culvert 300x300x100 dengan lantai kerja fc 10 Mpa", "Unit": "Rp7,205,100.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 40x40x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,451,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 50x50x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,775,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 60x60x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp1,826,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 80x80x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp3,632,000.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 100x100x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp4,480,500.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 150x150x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp5,235,100.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 200x200x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp6,092,300.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "8.3.2 Saluran Box Culvert dengan lantai kerja 7,5 Mpa", "Item": "1 m' Box Culvert 300x300x100 dengan lantai kerja fc 7,5 Mpa", "Unit": "Rp7,141,600.00", "Price": 7, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 2-1/2\" (65 mm)", "Unit": "Rp38,400.00", "Price": 38, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 3\" (80 mm)", "Unit": "Rp57,100.00", "Price": 57, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 4\" (100 mm)", "Unit": "Rp72,500.00", "Price": 72, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 6\" (150 mm)", "Unit": "Rp102,200.00", "Price": 102, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 8\" (200 mm)", "Unit": "Rp205,000.00", "Price": 205, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 10\" (250 mm)", "Unit": "Rp389,900.00", "Price": 389, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 12\" (300 mm)", "Unit": "Rp420,400.00", "Price": 420, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 16\" (400 mm)", "Unit": "Rp480,900.00", "Price": 480, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 18\" (450 mm)", "Unit": "Rp598,100.00", "Price": 598, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 20\" (500 mm)", "Unit": "Rp671,500.00", "Price": 671, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 24\" (600 mm)", "Unit": "Rp743,800.00", "Price": 743, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 32\" (800 mm)", "Unit": "Rp1,002,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 36\" (900 mm)", "Unit": "Rp1,054,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 40\" (1000 mm)", "Unit": "Rp1,148,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 44\" (1100 mm)", "Unit": "Rp1,253,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 48\" (1200 mm)", "Unit": "Rp1,331,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 1/2\" (15 mm)", "Unit": "Rp19,800.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 3/4\" (20 mm)", "Unit": "Rp22,300.00", "Price": 22, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 1\" (25 mm)", "Unit": "Rp26,900.00", "Price": 26, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 1-1/4\" (32 mm)", "Unit": "Rp28,700.00", "Price": 28, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 1-1/2\" (40 mm)", "Unit": "Rp29,300.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "9.1.1 Pemasangan Pipa PVC", "Item": "Pemasangan 1 m Pipa PVC, DN. 2\" (50 mm)", "Unit": "Rp37,000.00", "Price": 37, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 2-1/2\" (65 mm)", "Unit": "Rp1,300.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 3\" (80 mm)", "Unit": "Rp3,800.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 4\" (100 mm)", "Unit": "Rp6,000.00", "Price": 6, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 6\" (150 mm)", "Unit": "Rp8,300.00", "Price": 8, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 8\" (200 mm)", "Unit": "Rp22,300.00", "Price": 22, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 10\" (250 mm)", "Unit": "Rp35,600.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 12\" (300 mm)", "Unit": "Rp42,900.00", "Price": 42, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 16\" (400 mm)", "Unit": "Rp91,100.00", "Price": 91, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 18\" (450 mm)", "Unit": "Rp115,200.00", "Price": 115, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 20\" (500 mm)", "Unit": "Rp142,300.00", "Price": 142, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 24\" (600 mm)", "Unit": "Rp171,000.00", "Price": 171, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 32\" (800 mm)", "Unit": "Rp299,700.00", "Price": 299, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 36\" (900 mm)", "Unit": "Rp314,000.00", "Price": 314, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 40\" (1000 mm)", "Unit": "Rp353,800.00", "Price": 353, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 44\" (1100 mm)", "Unit": "Rp393,400.00", "Price": 393, "Source": "AHSP 2025"},
+    {"Category": "9.1.2 Pemotongan Pipa PVC", "Item": "Pemotongan 1 Buah Pipa PVC, DN. 48\" (1200 mm)", "Unit": "Rp433,000.00", "Price": 433, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 2-1/2\" (65 mm)", "Unit": "Rp298,500.00", "Price": 298, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 4\" (100 mm)", "Unit": "Rp451,000.00", "Price": 451, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 5\" (125 mm)", "Unit": "Rp602,600.00", "Price": 602, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 6\" (150 mm)", "Unit": "Rp574,300.00", "Price": 574, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 8\" (200 mm)", "Unit": "Rp676,600.00", "Price": 676, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN.10\" (250 mm)", "Unit": "Rp775,600.00", "Price": 775, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 12\" (300 mm)", "Unit": "Rp830,200.00", "Price": 830, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 16\" (400 mm)", "Unit": "Rp998,000.00", "Price": 998, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 18\" (450 mm)", "Unit": "Rp455,600.00", "Price": 455, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 20\" (500 mm)", "Unit": "Rp1,147,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 24\" (600 mm)", "Unit": "Rp1,162,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 32\" (800 mm)", "Unit": "Rp1,482,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 36\" (900 mm)", "Unit": "Rp1,644,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 40\" (1000 mm)", "Unit": "Rp1,772,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 44\" (1100 mm)", "Unit": "Rp1,919,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 48\" (1200 mm)", "Unit": "Rp2,083,000.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 1/2\" (15 mm)", "Unit": "Rp116,400.00", "Price": 116, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 3/4\" (20 mm)", "Unit": "Rp134,000.00", "Price": 134, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 1\" (25 mm)", "Unit": "Rp153,500.00", "Price": 153, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 1-1/4\" (32 mm)", "Unit": "Rp162,300.00", "Price": 162, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 1-1/2\" (40 mm)", "Unit": "Rp170,000.00", "Price": 170, "Source": "AHSP 2025"},
+    {"Category": "9.2.1 Pemasangan Pipa Galvanis", "Item": "Pemasangan 1 m Pipa Galvanis, DN. 2\" (50 mm)", "Unit": "Rp197,200.00", "Price": 197, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 2-1/2\" (65 mm)", "Unit": "Rp5,500.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 4\" (100 mm)", "Unit": "Rp16,000.00", "Price": 16, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 5\" (125 mm)", "Unit": "Rp25,200.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 6\" (150 mm)", "Unit": "Rp36,100.00", "Price": 36, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 8\" (200 mm)", "Unit": "Rp93,000.00", "Price": 93, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN.10\" (250 mm)", "Unit": "Rp129,700.00", "Price": 129, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 12\" (300 mm)", "Unit": "Rp138,200.00", "Price": 138, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 16\" (400 mm)", "Unit": "Rp203,400.00", "Price": 203, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 18\" (450 mm)", "Unit": "Rp234,300.00", "Price": 234, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 20\" (500 mm)", "Unit": "Rp260,600.00", "Price": 260, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 24\" (600 mm)", "Unit": "Rp325,000.00", "Price": 325, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 32\" (800 mm)", "Unit": "Rp437,000.00", "Price": 437, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 36\" (900 mm)", "Unit": "Rp499,200.00", "Price": 499, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 40\" (1000 mm)", "Unit": "Rp559,295.00", "Price": 559, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 44\" (1100 mm)", "Unit": "Rp617,100.00", "Price": 617, "Source": "AHSP 2025"},
+    {"Category": "9.2.2 Pemotongan Pipa Galvanis", "Item": "Pemotongan 1 Buah Pipa Galvanis, DN. 48\" (1200 mm)", "Unit": "Rp681,258.00", "Price": 681, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 2-1/2\" (65 mm)", "Unit": "Rp38,900.00", "Price": 38, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 4\" (100 mm)", "Unit": "Rp68,000.00", "Price": 68, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 5\" (125 mm)", "Unit": "Rp78,300.00", "Price": 78, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 6\" (150 mm)", "Unit": "Rp89,300.00", "Price": 89, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 8\" (200 mm)", "Unit": "Rp112,200.00", "Price": 112, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN.10\" (250 mm)", "Unit": "Rp131,000.00", "Price": 131, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 12\" (300 mm)", "Unit": "Rp156,900.00", "Price": 156, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 16\" (400 mm)", "Unit": "Rp208,400.00", "Price": 208, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 18\" (450 mm)", "Unit": "Rp257,000.00", "Price": 257, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 20\" (500 mm)", "Unit": "Rp303,600.00", "Price": 303, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 24\" (600 mm)", "Unit": "Rp347,100.00", "Price": 347, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 32\" (800 mm)", "Unit": "Rp490,000.00", "Price": 490, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 36\" (900 mm)", "Unit": "Rp653,900.00", "Price": 653, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 40\" (1000 mm)", "Unit": "Rp782,700.00", "Price": 782, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 44\" (1100 mm)", "Unit": "Rp850,900.00", "Price": 850, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 48\" (1200 mm)", "Unit": "Rp1,064,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 1/2\" (15 mm)", "Unit": "Rp20,100.00", "Price": 20, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 3/4\" (20 mm)", "Unit": "Rp25,600.00", "Price": 25, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 1\" (25 mm)", "Unit": "Rp30,600.00", "Price": 30, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 1-1/4\" (32 mm)", "Unit": "Rp31,700.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 1-1/2\" (40 mm)", "Unit": "Rp32,800.00", "Price": 32, "Source": "AHSP 2025"},
+    {"Category": "9.3.1 Pemasangan Pipa HDPE", "Item": "Pemasangan 1 m Pipa HDPE, DN. 2\" (50 mm)", "Unit": "Rp35,600.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 2-1/2\" (65 mm)", "Unit": "Rp800.00", "Price": 80000, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 4\" (100 mm)", "Unit": "Rp2,100.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 5\" (125 mm)", "Unit": "Rp3,000.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 6\" (150 mm)", "Unit": "Rp5,100.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 8\" (200 mm)", "Unit": "Rp13,100.00", "Price": 13, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 10\" (250 mm)", "Unit": "Rp19,900.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 12\" (300 mm)", "Unit": "Rp26,700.00", "Price": 26, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 16\" (400 mm)", "Unit": "Rp52,200.00", "Price": 52, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 18\" (450 mm)", "Unit": "Rp66,600.00", "Price": 66, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 20\" (500 mm)", "Unit": "Rp81,800.00", "Price": 81, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 24\" (600 mm)", "Unit": "Rp98,100.00", "Price": 98, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 32\" (800 mm)", "Unit": "Rp176,800.00", "Price": 176, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 36\" (900 mm)", "Unit": "Rp270,900.00", "Price": 270, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 40\" (1000 mm)", "Unit": "Rp332,500.00", "Price": 332, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 44\" (1100 mm)", "Unit": "Rp363,700.00", "Price": 363, "Source": "AHSP 2025"},
+    {"Category": "9.3.2 Pemotogan Pipa HDPE", "Item": "Pemotongan 1 Buah Pipa HDPE, DN. 48\" (1200 mm)", "Unit": "Rp475,600.00", "Price": 475, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 4\" (100 mm)", "Unit": "Rp1,340,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 5\" (125 mm)", "Unit": "Rp1,371,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 6\" (150 mm)", "Unit": "Rp1,605,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 8\" (200 mm)", "Unit": "Rp1,822,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 10\" (250 mm)", "Unit": "Rp1,935,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 12\" (300 mm)", "Unit": "Rp2,020,000.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 16\" (400 mm)", "Unit": "Rp2,432,500.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 18\" (450 mm)", "Unit": "Rp2,590,800.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 20\" (500 mm)", "Unit": "Rp2,790,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 24\" (600 mm)", "Unit": "Rp3,281,900.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 32\" (800 mm)", "Unit": "Rp3,922,100.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 36\" (900 mm)", "Unit": "Rp4,306,100.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 40\" (1000 mm)", "Unit": "Rp4,784,400.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 44\" (1100 mm)", "Unit": "Rp5,383,100.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "9.4.1 Pemasangan Pipa DCI", "Item": "Pemasangan 1 m Pipa DCI, DN. 48\" (1200 mm)", "Unit": "Rp3,029,300.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 4\" (100 mm)", "Unit": "Rp15,400.00", "Price": 15, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 5\" (125 mm)", "Unit": "Rp24,900.00", "Price": 24, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 6\" (150 mm)", "Unit": "Rp36,100.00", "Price": 36, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 8\" (200 mm)", "Unit": "Rp84,500.00", "Price": 84, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 10\" (250 mm)", "Unit": "Rp110,300.00", "Price": 110, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 12\" (300 mm)", "Unit": "Rp118,500.00", "Price": 118, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 16\" (400 mm)", "Unit": "Rp213,700.00", "Price": 213, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 18\" (450 mm)", "Unit": "Rp257,100.00", "Price": 257, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 20\" (500 mm)", "Unit": "Rp295,700.00", "Price": 295, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 24\" (600 mm)", "Unit": "Rp354,600.00", "Price": 354, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 32\" (800 mm)", "Unit": "Rp580,100.00", "Price": 580, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 36\" (900 mm)", "Unit": "Rp750,500.00", "Price": 750, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 40\" (1000 mm)", "Unit": "Rp894,400.00", "Price": 894, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 44\" (1100 mm)", "Unit": "Rp1,051,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.4.2 Pemotongan Pipa PCI", "Item": "Pemotongan 1 Buah Pipa DCI, DN. 48\" (1200 mm)", "Unit": "Rp1,221,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 2-1/2\" (65 mm)", "Unit": "Rp684,500.00", "Price": 684, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 4\" (100 mm)", "Unit": "Rp839,094.00", "Price": 839, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 5\" (125 mm)", "Unit": "Rp985,878.00", "Price": 985, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 6\" (150 mm)", "Unit": "Rp1,048,182.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 8\" (200 mm)", "Unit": "Rp1,222,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 10\" (250 mm)", "Unit": "Rp1,322,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 12\" (300 mm)", "Unit": "Rp1,462,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 16\" (400 mm)", "Unit": "Rp3,198,000.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 18\" (450 mm)", "Unit": "Rp3,443,800.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 20\" (500 mm)", "Unit": "Rp3,651,100.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 24\" (600 mm)", "Unit": "Rp3,917,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 32\" (800 mm)", "Unit": "Rp4,178,300.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 36\" (900 mm)", "Unit": "Rp4,348,700.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 40\" (1000 mm)", "Unit": "Rp4,815,300.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 44\" (1100 mm)", "Unit": "Rp5,088,400.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "9.5.1 Pemasangan Pipa Baja Karbon", "Item": "Pemasangan 1 m Pipa Baja Karbon, DN. 48\" (1200 mm)", "Unit": "Rp5,364,200.00", "Price": 5, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 2-1/2\" (65 mm)", "Unit": "Rp19,800.00", "Price": 19, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 4\" (100 mm)", "Unit": "Rp21,300.00", "Price": 21, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 5\" (125 mm)", "Unit": "Rp31,800.00", "Price": 31, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 6\" (150 mm)", "Unit": "Rp42,900.00", "Price": 42, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 8\" (200 mm)", "Unit": "Rp106,500.00", "Price": 106, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 10\" (250 mm)", "Unit": "Rp147,100.00", "Price": 147, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 12\" (300 mm)", "Unit": "Rp164,800.00", "Price": 164, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 16\" (400 mm)", "Unit": "Rp315,900.00", "Price": 315, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 18\" (450 mm)", "Unit": "Rp328,600.00", "Price": 328, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 20\" (500 mm)", "Unit": "Rp341,400.00", "Price": 341, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 24\" (600 mm)", "Unit": "Rp430,400.00", "Price": 430, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 32\" (800 mm)", "Unit": "Rp518,100.00", "Price": 518, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 36\" (900 mm)", "Unit": "Rp649,000.00", "Price": 649, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 40\" (1000 mm)", "Unit": "Rp724,900.00", "Price": 724, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 44\" (1100 mm)", "Unit": "Rp800,500.00", "Price": 800, "Source": "AHSP 2025"},
+    {"Category": "9.5.2 Pemotongan Pipa Baja Karbon", "Item": "Pemotongan 1 Buah Pipa Baja Karbon, DN. 48\" (1200 mm)", "Unit": "Rp876,300.00", "Price": 876, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 8\" (200 mm)", "Unit": "Rp295,600.00", "Price": 295, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 12\" (300 mm)", "Unit": "Rp331,400.00", "Price": 331, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 16\" (400 mm)", "Unit": "Rp367,600.00", "Price": 367, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 20\" (500 mm)", "Unit": "Rp388,800.00", "Price": 388, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 24\" (600 mm)", "Unit": "Rp473,000.00", "Price": 473, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 28\" (700 mm)", "Unit": "Rp548,200.00", "Price": 548, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 32\" (800 mm)", "Unit": "Rp698,500.00", "Price": 698, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 40\" (1000 mm)", "Unit": "Rp786,500.00", "Price": 786, "Source": "AHSP 2025"},
+    {"Category": "9.6.1 Pemasangan Pipa Beton", "Item": "Pemasangan 1 m Pipa Beton, DN. 48\" (1200 mm)", "Unit": "Rp896,800.00", "Price": 896, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 3\" (80 mm)", "Unit": "Rp858,400.00", "Price": 858, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 4\" (100 mm)", "Unit": "Rp963,700.00", "Price": 963, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 6\" (150 mm)", "Unit": "Rp1,227,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 8\" (200 mm)", "Unit": "Rp1,490,500.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 10\" (250 mm)", "Unit": "Rp1,753,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 12\" (300 mm)", "Unit": "Rp2,017,200.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 16\" (400 mm)", "Unit": "Rp2,543,900.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 18\" (450 mm)", "Unit": "Rp2,807,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 20\" (500 mm)", "Unit": "Rp3,070,600.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 24\" (600 mm)", "Unit": "Rp3,597,400.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 28\" (700 mm)", "Unit": "Rp4,124,100.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 32\" (800 mm)", "Unit": "Rp4,650,800.00", "Price": 4, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 1/2\" (15 mm)", "Unit": "Rp181,600.00", "Price": 181, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 3/4\" (20 mm)", "Unit": "Rp226,900.00", "Price": 226, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 1\" (25 mm)", "Unit": "Rp283,800.00", "Price": 283, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 1-1/4\" (32 mm)", "Unit": "Rp355,000.00", "Price": 355, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 1-1/2\" (40 mm)", "Unit": "Rp355,000.00", "Price": 355, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 2\" (50 mm)", "Unit": "Rp443,700.00", "Price": 443, "Source": "AHSP 2025"},
+    {"Category": "9.7.1 Sambungan Pipa Baru ke Pipa Lama", "Item": "Penyambungan 1 buah Pipa Baru ke Pipa Yang Ada, DN. 2-1/2\" (65 mm)", "Unit": "Rp554,500.00", "Price": 554, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 6\" (150 mm)", "Unit": "Rp644,600.00", "Price": 644, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 8\" (200 mm)", "Unit": "Rp816,400.00", "Price": 816, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 10\" (250 mm)", "Unit": "Rp933,100.00", "Price": 933, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 12\" (300 mm)", "Unit": "Rp1,049,400.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 16\" (400 mm)", "Unit": "Rp1,582,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 18\" (450 mm)", "Unit": "Rp1,703,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 20\" (500 mm)", "Unit": "Rp1,845,800.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 24\" (600 mm)", "Unit": "Rp1,634,100.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 28\" (700 mm)", "Unit": "Rp2,114,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 32\" (800 mm)", "Unit": "Rp2,229,300.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 36\" (900 mm)", "Unit": "Rp2,851,700.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 40\" (1000 mm)", "Unit": "Rp3,451,700.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 44\" (1100 mm)", "Unit": "Rp3,677,300.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 48\" (1200 mm)", "Unit": "Rp3,826,600.00", "Price": 3, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 1/2\" (15 mm)", "Unit": "Rp127,700.00", "Price": 127, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 3/4\" (20 mm)", "Unit": "Rp144,600.00", "Price": 144, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 1\" (25 mm)", "Unit": "Rp162,600.00", "Price": 162, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 1-1/4\" (32 mm)", "Unit": "Rp187,300.00", "Price": 187, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 1-1/2\" (40 mm)", "Unit": "Rp205,200.00", "Price": 205, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 2\" (50 mm)", "Unit": "Rp235,900.00", "Price": 235, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 2-1/2\" (65 mm)", "Unit": "Rp275,700.00", "Price": 275, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 3\" (80 mm)", "Unit": "Rp322,100.00", "Price": 322, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 4\" (100 mm)", "Unit": "Rp364,000.00", "Price": 364, "Source": "AHSP 2025"},
+    {"Category": "9.7.2 Valve", "Item": "Pemasangan 1 Buah Valve Ã 5\" (125 mm)", "Unit": "Rp460,000.00", "Price": 460, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 6\" (150 mm)", "Unit": "Rp103,400.00", "Price": 103, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 8\" (200 mm)", "Unit": "Rp213,500.00", "Price": 213, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 10\" (250 mm)", "Unit": "Rp329,000.00", "Price": 329, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 18\" (450 mm)", "Unit": "Rp579,400.00", "Price": 579, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 20\" (500 mm)", "Unit": "Rp692,400.00", "Price": 692, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 24\" (600 mm)", "Unit": "Rp950,000.00", "Price": 950, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 28\" (700 mm)", "Unit": "Rp1,122,700.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 32\" (800 mm)", "Unit": "Rp1,309,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 36\" (900 mm)", "Unit": "Rp1,505,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 40\" (1000 mm)", "Unit": "Rp1,692,900.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 44\" (1100 mm)", "Unit": "Rp1,858,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 48\" (1200 mm)", "Unit": "Rp2,108,500.00", "Price": 2, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 1/2\" (15 mm)", "Unit": "Rp27,300.00", "Price": 27, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 3/4\" (20 mm)", "Unit": "Rp35,000.00", "Price": 35, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 1\" (25 mm)", "Unit": "Rp39,900.00", "Price": 39, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 1-1/4\" (32 mm)", "Unit": "Rp42,700.00", "Price": 42, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 1-1/2\" (40 mm)", "Unit": "Rp51,300.00", "Price": 51, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 2\" (50 mm)", "Unit": "Rp55,400.00", "Price": 55, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 2-1/2\" (65 mm)", "Unit": "Rp64,500.00", "Price": 64, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 3\" (80 mm)", "Unit": "Rp79,300.00", "Price": 79, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 4\" (100 mm)", "Unit": "Rp86,500.00", "Price": 86, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 5\" (125 mm)", "Unit": "Rp83,600.00", "Price": 83, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 12\" (300 mm)", "Unit": "Rp376,000.00", "Price": 376, "Source": "AHSP 2025"},
+    {"Category": "9.7.3 Pemasangan Aksesoris Tee", "Item": "Pemasangan 1 Buah Tee Ã 16\" (400 mm)", "Unit": "Rp457,300.00", "Price": 457, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Pembuatan 1 buah cetakan Panel P1 RISHA (Asumsi 400 Kali Pakai )", "Unit": "Rp1,826,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Pembuatan 1 buah cetakan Panel P2 RISHA (Asumsi 400 Kali Pakai )", "Unit": "Rp1,609,600.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Pembuatan 1 buah cetakan Panel P3 RISHA (Asumsi 400 Kali Pakai )", "Unit": "Rp884,000.00", "Price": 884, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Pasangan dan Membuka Cetakan 1 buah Komponen P1 RISHA", "Unit": "Rp18,600.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Pasangan dan Membuka Cetakan 1 buah Komponen P2 RISHA", "Unit": "Rp18,200.00", "Price": 18, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Pasangan dan Membuka Cetakan 1 buah Komponen P3 RISHA", "Unit": "Rp17,800.00", "Price": 17, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Produksi 1 buah Panel P1", "Unit": "Rp208,700.00", "Price": 208, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Produksi 1 buah Panel P2", "Unit": "Rp180,100.00", "Price": 180, "Source": "AHSP 2025"},
+    {"Category": "10.1 Pekerjaan Produksi Panel RISHA", "Item": "Produksi 1 buah Panel P3", "Unit": "Rp141,300.00", "Price": 141, "Source": "AHSP 2025"},
+    {"Category": "10.2 Pekerjaan Pengepakan dan Pengiriman Panel Lengkap dengan Aksesoris RISHA", "Item": "Pengepakan 1 set Panel dan Aksesoris RISHA T-36", "Unit": "Rp1,432,200.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "10.2 Pekerjaan Pengepakan dan Pengiriman Panel Lengkap dengan Aksesoris RISHA", "Item": "Pengiriman 1 set Panel dan Aksesoris RISHA T-36", "Unit": "Rp29,808,600.00", "Price": 29, "Source": "AHSP 2025"},
+    {"Category": "10.3 Pekerjaan Perakitan Panel RISHA", "Item": "Pekerjaan Perakitan Panel dan Alat Sambung Modul T36 RISHA", "Unit": "Rp1,965,000.00", "Price": 1, "Source": "AHSP 2025"},
+    {"Category": "10.3 Pekerjaan Perakitan Panel RISHA", "Item": "Pekerjaan Perakitan Panel Modul T36 RISHA", "Unit": "Rp1,813,500.00", "Price": 1, "Source": "AHSP 2025"},
+]
+    
+
+    return pd.DataFrame(data)
+
+def render_ahsp_selector():
+    """Menampilkan Menu Tambah Item di UI"""
+    st.markdown("### ➕ Tambah Pekerjaan Baru (Database AHSP)")
+    
+    with st.container():
+        df_ahsp = load_ahsp_database()
+        
+        # Layout Kolom
+        c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
+        
+        with c1:
+            # Dropdown Kategori
+            kategori_list = df_ahsp['Category'].unique()
+            selected_cat = st.selectbox("Pilih Kategori", kategori_list)
+            
+            # Filter Item
+            items_in_cat = df_ahsp[df_ahsp['Category'] == selected_cat]
+            selected_item = st.selectbox("Pilih Uraian Pekerjaan", items_in_cat['Item'].unique())
+            
+            # Ambil Data
+            item_row = items_in_cat[items_in_cat['Item'] == selected_item].iloc[0]
+            st.caption(f"Satuan: {item_row['Unit']} | Harga: Rp {item_row['Price']:,.0f}")
+
+        with c2:
+            last_div = "PEKERJAAN BARU"
+            if not st.session_state['df_rab'].empty:
+                last_div = st.session_state['df_rab']['Divisi'].iloc[-1]
+            input_div = st.text_input("Divisi RAB", value=last_div)
+        
+        with c3:
+            input_vol = st.number_input("Volume", min_value=0.0, value=1.0, step=0.1)
+            
+        with c4:
+            st.write("")
+            st.write("")
+            btn_add = st.button("➕ Tambah", type="primary", use_container_width=True)
+
+        if btn_add:
+            try:
+                # Generate Kode Unik
+                next_id = len(st.session_state.df_analysis) + 9000
+                new_code = f"AHSP-{next_id}"
+                clean_key = selected_item.lower().strip()
+
+                # 1. Update Harga (Inject sebagai Material)
+                new_price = {
+                    'Kode': f"M-{next_id}",
+                    'Komponen': selected_item,
+                    'Satuan': item_row['Unit'],
+                    'Harga_Dasar': item_row['Price'],
+                    'Kategori': 'Material',
+                    'Key': clean_key
+                }
+                st.session_state.df_prices = pd.concat([st.session_state.df_prices, pd.DataFrame([new_price])], ignore_index=True)
+
+                # 2. Update Analisa (Koefisien 1.0)
+                new_analysis = {
+                    'Kode_Analisa': new_code,
+                    'Uraian_Pekerjaan': selected_item, # Penting agar muncul di Detail Analisa
+                    'Komponen': selected_item,
+                    'Koefisien': 1.0,
+                    'Key': clean_key
+                }
+                st.session_state.df_analysis = pd.concat([st.session_state.df_analysis, pd.DataFrame([new_analysis])], ignore_index=True)
+
+                # 3. Update RAB
+                new_rab = {
+                    'No': len(st.session_state.df_rab) + 1,
+                    'Divisi': input_div,
+                    'Uraian_Pekerjaan': selected_item,
+                    'Kode_Analisa_Ref': new_code,
+                    'Satuan_Pek': item_row['Unit'],
+                    'Volume': input_vol,
+                    'Harga_Satuan_Jadi': 0, 
+                    'Total_Harga': 0,
+                    'Durasi_Minggu': 1,
+                    'Minggu_Mulai': 1
+                }
+                st.session_state.df_rab = pd.concat([st.session_state.df_rab, pd.DataFrame([new_rab])], ignore_index=True)
+                
+                calculate_system()
+                st.success(f"Berhasil: {selected_item}")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Error: {e}")
+    st.divider()
+
+# ==========================================
+# 3. LOGIKA UTAMA & IMPORT EXCEL
+# ==========================================
 def initialize_data():
-    defaults = {
-        'global_overhead': 15.0,
-        'project_name': '-',
-        'project_loc': '-',
-        'project_year': '2025'
-    }
-    for key, val in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
+    defaults = {
+        'global_overhead': 15.0,
+        'project_name': '-',
+        'project_loc': '-',
+        'project_year': '2025'
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
 
-    if 'df_prices' not in st.session_state:
-        # UPDATE: Penambahan Data Upah (Mandor, Kepala Tukang, Tukang Las)
-        data_prices = {
-            'Kode': [
-                'M.01', 'M.02', 'M.03', 
-                'L.01', 'L.02', 'L.03', 'L.04', 'L.05', 
-                'E.01'
-            ],
-            'Komponen': [
-                'Semen Portland', 'Pasir Beton', 'Batu Kali', 
-                'Pekerja', 'Tukang Batu', 'Kepala Tukang', 'Mandor', 'Tukang Las', 
-                'Sewa Molen'
-            ],
-            'Satuan': [
-                'kg', 'kg', 'm3', 
-                'OH', 'OH', 'OH', 'OH', 'OH', 
-                'Jam'
-            ],
-            'Harga_Dasar': [
-                1300, 300, 286500, 
-                100000, 145000, 175000, 200000, 145000, 
-                85000
-            ],
-            'Kategori': [
-                'Material', 'Material', 'Material', 
-                'Upah', 'Upah', 'Upah', 'Upah', 'Upah', 
-                'Alat'
-            ]
-        }
-        st.session_state['df_prices'] = pd.DataFrame(data_prices)
+    if 'df_prices' not in st.session_state:
+        data_prices = {
+            'Kode': ['M.01', 'M.02', 'L.01'],
+            'Komponen': ['Semen Portland', 'Pasir Beton', 'Pekerja'],
+            'Satuan': ['kg', 'kg', 'OH'],
+            'Harga_Dasar': [1300, 300, 100000],
+            'Kategori': ['Material', 'Material', 'Upah']
+        }
+        st.session_state['df_prices'] = pd.DataFrame(data_prices)
 
-    if 'df_analysis' not in st.session_state:
-        data_analysis = {
-            'Kode_Analisa': ['A.2.2.1', 'A.2.2.1', 'A.2.2.1', 'A.2.2.1', 'A.2.2.1', 
-                             'A.4.1.1', 'A.4.1.1', 'A.4.1.1', 'A.4.1.1', 'A.4.1.1'],
-            'Uraian_Pekerjaan': ['Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4', 'Pondasi Batu Kali 1:4',
-                                 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa', 'Beton Mutu fc 25 Mpa'],
-            'Komponen': ['Batu Kali', 'Semen Portland', 'Pasir Beton', 'Pekerja', 'Tukang Batu',
-                         'Semen Portland', 'Pasir Beton', 'Split (Asumsi)', 'Pekerja', 'Sewa Molen'],
-            'Koefisien': [1.2, 163.0, 0.52, 1.5, 0.75,
-                          350.0, 700.0, 1050.0, 2.0, 0.25]
-        }
-        st.session_state['df_analysis'] = pd.DataFrame(data_analysis)
+    if 'df_analysis' not in st.session_state:
+        data_analysis = {
+            'Kode_Analisa': ['A.1', 'A.1'],
+            'Uraian_Pekerjaan': ['Contoh Pekerjaan Beton', 'Contoh Pekerjaan Beton'],
+            'Komponen': ['Semen Portland', 'Pasir Beton'],
+            'Koefisien': [10.0, 0.5]
+        }
+        st.session_state['df_analysis'] = pd.DataFrame(data_analysis)
 
-    if 'df_rab' not in st.session_state:
-        data_rab = {
-            'No': [1, 2],
-            'Divisi': ['PEKERJAAN STRUKTUR BAWAH', 'PEKERJAAN STRUKTUR ATAS'], 
-            'Uraian_Pekerjaan': ['Pondasi Batu Kali 1:4', 'Beton Mutu fc 25 Mpa'],
-            'Kode_Analisa_Ref': ['A.2.2.1', 'A.4.1.1'],
-            'Satuan_Pek': ['m3', 'm3'],
-            'Volume': [50.0, 25.0],
-            'Harga_Satuan_Jadi': [0.0, 0.0],
-            'Total_Harga': [0.0, 0.0],
-            'Durasi_Minggu': [2, 4],
-            'Minggu_Mulai': [1, 3]
-        }
-        st.session_state['df_rab'] = pd.DataFrame(data_rab)
-    
-    if 'Durasi_Minggu' not in st.session_state['df_rab'].columns:
-        st.session_state['df_rab']['Durasi_Minggu'] = 1
-        st.session_state['df_rab']['Minggu_Mulai'] = 1
-        
-    calculate_system()
+    if 'df_rab' not in st.session_state:
+        data_rab = {
+            'No': [1],
+            'Divisi': ['PEKERJAAN CONTOH'],
+            'Uraian_Pekerjaan': ['Contoh Pekerjaan Beton'],
+            'Kode_Analisa_Ref': ['A.1'],
+            'Satuan_Pek': ['m3'],
+            'Volume': [10.0],
+            'Harga_Satuan_Jadi': [0.0],
+            'Total_Harga': [0.0],
+            'Durasi_Minggu': [1],
+            'Minggu_Mulai': [1]
+        }
+        st.session_state['df_rab'] = pd.DataFrame(data_rab)
+    
+    if 'Durasi_Minggu' not in st.session_state['df_rab'].columns:
+        st.session_state['df_rab']['Durasi_Minggu'] = 1
+        st.session_state['df_rab']['Minggu_Mulai'] = 1
+        
+    calculate_system()
 
-# --- 2. Mesin Logika Utama ---
 def calculate_system():
-    df_p = st.session_state['df_prices'].copy()
-    df_a = st.session_state['df_analysis'].copy()
-    df_r = st.session_state['df_rab'].copy()
-    
-    overhead_pct = st.session_state.get('global_overhead', 15.0)
-    overhead_factor = 1 + (overhead_pct / 100)
+    df_p = st.session_state['df_prices'].copy()
+    df_a = st.session_state['df_analysis'].copy()
+    df_r = st.session_state['df_rab'].copy()
+    
+    overhead_pct = st.session_state.get('global_overhead', 15.0)
+    overhead_factor = 1 + (overhead_pct / 100)
 
-    df_p['Key'] = df_p['Komponen'].str.strip().str.lower()
-    df_a['Key'] = df_a['Komponen'].str.strip().str.lower()
+    df_p['Key'] = df_p['Komponen'].astype(str).str.strip().str.lower()
+    df_a['Key'] = df_a['Komponen'].astype(str).str.strip().str.lower()
 
-    # 1. Hitung Harga Satuan
-    merged_analysis = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan', 'Kategori']], on='Key', how='left')
-    merged_analysis['Harga_Dasar'] = merged_analysis['Harga_Dasar'].fillna(0)
-    merged_analysis['Satuan'] = merged_analysis['Satuan'].fillna('-')
-    merged_analysis['Kategori'] = merged_analysis['Kategori'].fillna('Material')
-    merged_analysis['Subtotal'] = merged_analysis['Koefisien'] * merged_analysis['Harga_Dasar']
-    
-    st.session_state['df_analysis_detailed'] = merged_analysis 
+    # Merge Harga ke Analisa
+    merged = pd.merge(df_a, df_p[['Key', 'Harga_Dasar', 'Satuan', 'Kategori']], on='Key', how='left')
+    merged['Harga_Dasar'] = merged['Harga_Dasar'].fillna(0)
+    merged['Subtotal'] = merged['Koefisien'] * merged['Harga_Dasar']
+    
+    st.session_state['df_analysis_detailed'] = merged 
 
-    unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
-    unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_factor 
-    
-    # === PERBAIKAN: Samakan Tipe Data Sebelum Merge ===
-    df_r['Kode_Analisa_Ref'] = df_r['Kode_Analisa_Ref'].astype(str).str.strip()
-    unit_prices_pure['Kode_Analisa'] = unit_prices_pure['Kode_Analisa'].astype(str).str.strip()
-    # ==================================================
+    # Hitung Harga Satuan per Kode Analisa
+    unit_prices = merged.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
+    unit_prices['Harga_Kalkulasi'] = unit_prices['Subtotal'] * overhead_factor
+    
+    # Update RAB
+    df_r['Kode_Analisa_Ref'] = df_r['Kode_Analisa_Ref'].astype(str).str.strip()
+    unit_prices['Kode_Analisa'] = unit_prices['Kode_Analisa'].astype(str).str.strip()
 
-    # 2. Update RAB
-    df_r_temp = pd.merge(df_r, unit_prices_pure[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
-    df_r['Harga_Satuan_Jadi'] = df_r_temp['Harga_Kalkulasi'].fillna(0)
-    df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
-    st.session_state['df_rab'] = df_r
+    df_r_temp = pd.merge(df_r, unit_prices[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
+    df_r['Harga_Satuan_Jadi'] = df_r_temp['Harga_Kalkulasi'].fillna(0)
+    df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
+    st.session_state['df_rab'] = df_r
 
-    # 3. Hitung Rekap Material (Lanjutan kode lama tetap sama...)
-    material_breakdown = pd.merge(
-        df_r[['Kode_Analisa_Ref', 'Volume']], 
-        merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
-        left_on='Kode_Analisa_Ref', 
-        right_on='Kode_Analisa', 
-        how='left'
-    )
-    material_breakdown['Total_Kebutuhan_Material'] = material_breakdown['Volume'] * material_breakdown['Koefisien']
-    material_breakdown['Total_Biaya_Material'] = material_breakdown['Total_Kebutuhan_Material'] * material_breakdown['Harga_Dasar']
-    
-    rekap_final = material_breakdown.groupby(['Komponen', 'Satuan']).agg({
-        'Total_Kebutuhan_Material': 'sum',
-        'Total_Biaya_Material': 'sum'
-    }).reset_index()
-    
-    st.session_state['df_material_rekap'] = rekap_final
-# --- 3. Logic Kurva S ---
-def generate_s_curve_data():
-    df = st.session_state['df_rab'].copy()
-    grand_total = df['Total_Harga'].sum()
-    
-    if grand_total == 0:
-        return None, None
-
-    df['Bobot_Pct'] = (df['Total_Harga'] / grand_total) * 100
-    
-    max_week = int(df.apply(lambda x: x['Minggu_Mulai'] + x['Durasi_Minggu'] - 1, axis=1).max())
-    if pd.isna(max_week) or max_week < 1: max_week = 1
-    
-    cumulative_list = []
-    cumulative_progress = 0
-    
-    for w in range(1, max_week + 2):
-        weekly_weight = 0
-        for _, row in df.iterrows():
-            start = row['Minggu_Mulai']
-            duration = row['Durasi_Minggu']
-            end = start + duration - 1
-            if start <= w <= end:
-                weekly_weight += (row['Bobot_Pct'] / duration)
-        
-        cumulative_progress += weekly_weight
-        if cumulative_progress > 100: cumulative_progress = 100
-        
-        cumulative_list.append({
-            'Minggu': f"M{w}",
-            'Minggu_Int': w,
-            'Rencana_Kumulatif': cumulative_progress
-        })
-
-    return df, pd.DataFrame(cumulative_list)
-
-# --- 4. Helper UI Components & Printing ---
-
-def render_print_style():
-    st.markdown("""
-        <style>
-            @media print {
-                [data-testid="stHeader"], 
-                [data-testid="stSidebar"], 
-                [data-testid="stToolbar"], 
-                footer, 
-                .stDeployButton { display: none !important; }
-                .main .block-container { max-width: 100% !important; padding: 1rem !important; box-shadow: none !important; }
-                body { background-color: white !important; color: black !important; }
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
-def render_print_button():
-    components.html(
-        """
-        <script>
-            function cetak() { window.parent.print(); }
-        </script>
-        <div style="text-align: right;">
-            <button onclick="cetak()" style="
-                background-color: #f0f2f6; 
-                border: 1px solid #ccc; 
-                padding: 8px 16px; 
-                border-radius: 4px; 
-                cursor: pointer; 
-                font-weight: bold;
-                color: #333;
-                font-family: sans-serif;">
-                🖨️ Cetak Halaman / Print
-            </button>
-        </div>
-        """,
-        height=60
-    )
-
-def render_project_identity():
-    st.markdown(f"""
-    <div style="margin-bottom: 20px; font-family: sans-serif;">
-        <table style="width:100%; border:none;">
-            <tr><td style="font-weight:bold; width:150px;">PEKERJAAN</td><td>: {st.session_state['project_name']}</td></tr>
-            <tr><td style="font-weight:bold;">LOKASI</td><td>: {st.session_state['project_loc']}</td></tr>
-            <tr><td style="font-weight:bold;">TAHUN</td><td>: {st.session_state['project_year']}</td></tr>
-        </table>
-    </div>
-    """, unsafe_allow_html=True)
-
-def render_footer():
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: right; color: red; font-size: 14px; font-weight: bold;">
-        by SmartStudio, email smartstudioarsitek@gmail.com
-    </div>
-    """, unsafe_allow_html=True)
-
-def to_excel_download(df, sheet_name="Sheet1"):
-    output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    df.to_excel(writer, index=False, sheet_name=sheet_name)
-    writer.close()
-    return output.getvalue()
-
-def generate_excel_template(data_dict, sheet_name):
-    output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    df = pd.DataFrame(data_dict)
-    df.to_excel(writer, index=False, sheet_name=sheet_name)
-    writer.close()
-    return output.getvalue()
-
-def generate_rekap_final_excel(df_rekap, ppn_pct, pt_name, signer, position):
-    output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    workbook = writer.book
-    worksheet = workbook.add_worksheet('Rekapitulasi')
-
-    fmt_header = workbook.add_format({'bold': True, 'border': 1, 'align': 'center', 'bg_color': '#D3D3D3'})
-    fmt_currency = workbook.add_format({'num_format': '#,##0', 'border': 1})
-    fmt_text = workbook.add_format({'border': 1})
-    fmt_bold = workbook.add_format({'bold': True, 'border': 1})
-    
-    worksheet.write(0, 0, "PEKERJAAN", fmt_bold)
-    worksheet.write(0, 1, st.session_state['project_name'])
-    worksheet.write(1, 0, "LOKASI", fmt_bold)
-    worksheet.write(1, 1, st.session_state['project_loc'])
-    worksheet.write(2, 0, "TAHUN", fmt_bold)
-    worksheet.write(2, 1, st.session_state['project_year'])
-
-    worksheet.merge_range('A5:C5', 'REKAPITULASI BIAYA', workbook.add_format({'bold': True, 'align': 'center', 'font_size': 14}))
-    worksheet.merge_range('A6:C6', 'ENGINEERING ESTIMATE', workbook.add_format({'bold': True, 'align': 'center'}))
-    
-    worksheet.write(8, 0, 'No', fmt_header)
-    worksheet.write(8, 1, 'URAIAN PEKERJAAN', fmt_header)
-    worksheet.write(8, 2, 'TOTAL (Rp)', fmt_header)
-    
-    row = 9
-    total_biaya = 0
-    for idx, r in df_rekap.iterrows():
-        worksheet.write(row, 0, chr(65+idx), fmt_text) 
-        worksheet.write(row, 1, r['Divisi'], fmt_text)
-        worksheet.write(row, 2, r['Total_Harga'], fmt_currency)
-        total_biaya += r['Total_Harga']
-        row += 1
-        
-    ppn_val = total_biaya * (ppn_pct/100)
-    grand_total = total_biaya + ppn_val
-    
-    worksheet.write(row, 1, 'TOTAL BIAYA', fmt_bold)
-    worksheet.write(row, 2, total_biaya, fmt_currency)
-    row += 1
-    worksheet.write(row, 1, f'PPN {ppn_pct}%', fmt_bold)
-    worksheet.write(row, 2, ppn_val, fmt_currency)
-    row += 1
-    worksheet.write(row, 1, 'TOTAL', fmt_bold)
-    worksheet.write(row, 2, grand_total, fmt_currency)
-    
-    row += 3
-    worksheet.write(row, 2, pt_name, workbook.add_format({'bold': True, 'align': 'center'}))
-    row += 4
-    worksheet.write(row, 2, signer, workbook.add_format({'bold': True, 'align': 'center', 'underline': True}))
-    row += 1
-    worksheet.write(row, 2, position, workbook.add_format({'align': 'center'}))
-
-    worksheet.set_column(0, 0, 5)
-    worksheet.set_column(1, 1, 40)
-    worksheet.set_column(2, 2, 20)
-    
-    writer.close()
-    return output.getvalue()
-
-def load_excel_prices(uploaded_file):
-    try:
-        df_new = pd.read_excel(uploaded_file)
-        required = ['Komponen', 'Harga_Dasar', 'Kategori'] 
-        if not set(required).issubset(df_new.columns):
-            st.error(f"Format Excel salah! Wajib ada kolom: {required}")
-            return
-        st.session_state['df_prices'] = df_new
-        calculate_system()
-        st.success("Harga berhasil diupdate!")
-    except Exception as e:
-        st.error(f"Gagal membaca file: {e}")
+    # Rekap Material
+    mat_breakdown = pd.merge(df_r[['Kode_Analisa_Ref', 'Volume']], merged, left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
+    mat_breakdown['Total_Kebutuhan'] = mat_breakdown['Volume'] * mat_breakdown['Koefisien']
+    mat_breakdown['Total_Biaya'] = mat_breakdown['Total_Kebutuhan'] * mat_breakdown['Harga_Dasar']
+    
+    rekap_final = mat_breakdown.groupby(['Komponen', 'Satuan']).agg({
+        'Total_Kebutuhan': 'sum', 'Total_Biaya': 'sum'
+    }).reset_index()
+    st.session_state['df_material_rekap'] = rekap_final
 
 def load_excel_rab_volume(uploaded_file):
-    try:
-        # Tambahkan dtype={'Kode_Analisa_Ref': str} agar dibaca sebagai text sejak awal
-        df_new = pd.read_excel(uploaded_file)
-        
-        required = ['Divisi', 'Uraian_Pekerjaan', 'Kode_Analisa_Ref', 'Volume']
-        if not set(required).issubset(df_new.columns):
-            st.error(f"Format Excel salah! Wajib ada kolom: {required}")
-            return
-        
-        # === PERBAIKAN UTAMA DI SINI ===
-        # Paksa kolom Kode_Analisa_Ref menjadi string (teks) dan hapus spasi kosong
-        df_new['Kode_Analisa_Ref'] = df_new['Kode_Analisa_Ref'].astype(str).str.strip()
-        # ===============================
-        
-        df_clean = df_new[required].copy()
-        df_clean['No'] = range(1, len(df_clean) + 1)
-        df_clean['Satuan_Pek'] = 'ls/m3/m2' 
-        df_clean['Harga_Satuan_Jadi'] = 0
-        df_clean['Total_Harga'] = 0
-        df_clean['Durasi_Minggu'] = 1 
-        df_clean['Minggu_Mulai'] = 1 
-        
-        st.session_state['df_rab'] = df_clean
-        calculate_system()
-        st.success("Volume RAB berhasil diimport!")
-    except Exception as e:
-        st.error(f"Gagal membaca file: {e}")
+    try:
+        df_new = pd.read_excel(uploaded_file)
+        # Validasi kolom
+        required = ['Divisi', 'Uraian_Pekerjaan', 'Kode_Analisa_Ref', 'Volume']
+        if not set(required).issubset(df_new.columns):
+            st.error(f"Format Excel salah! Wajib ada kolom: {required}")
+            return
+        
+        # Bersihkan data
+        df_new['Kode_Analisa_Ref'] = df_new['Kode_Analisa_Ref'].astype(str).str.strip()
+        
+        df_clean = df_new[required].copy()
+        df_clean['No'] = range(1, len(df_clean) + 1)
+        df_clean['Satuan_Pek'] = 'ls/m3' 
+        df_clean['Harga_Satuan_Jadi'] = 0
+        df_clean['Total_Harga'] = 0
+        df_clean['Durasi_Minggu'] = 1 
+        df_clean['Minggu_Mulai'] = 1 
+        
+        st.session_state['df_rab'] = df_clean
+        calculate_system()
+        st.success("Volume RAB berhasil diimport!")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Gagal membaca file: {e}")
+
+def load_excel_prices(uploaded_file):
+    try:
+        df_new = pd.read_excel(uploaded_file)
+        # Validasi kolom
+        required = ['Komponen', 'Harga_Dasar', 'Kategori']
+        if set(required).issubset(df_new.columns):
+            st.session_state['df_prices'] = df_new
+            calculate_system()
+            st.success("Harga berhasil diupdate!")
+            st.rerun()
+        else:
+            st.error(f"Format Excel salah! Wajib ada kolom: {required}")
+    except Exception as e:
+        st.error(f"Gagal membaca file: {e}")
+
+def generate_s_curve_data():
+    df = st.session_state['df_rab'].copy()
+    grand_total = df['Total_Harga'].sum()
+    if grand_total == 0: return None, None
+
+    df['Bobot_Pct'] = (df['Total_Harga'] / grand_total) * 100
+    max_week = int(df.apply(lambda x: x['Minggu_Mulai'] + x['Durasi_Minggu'] - 1, axis=1).max())
+    if pd.isna(max_week) or max_week < 1: max_week = 1
+    
+    cumulative_list = []
+    cumulative_progress = 0
+    
+    for w in range(1, max_week + 2):
+        weekly_weight = 0
+        for _, row in df.iterrows():
+            start, dur = row['Minggu_Mulai'], row['Durasi_Minggu']
+            if start <= w < start + dur:
+                weekly_weight += (row['Bobot_Pct'] / dur)
+        
+        cumulative_progress += weekly_weight
+        if cumulative_progress > 100: cumulative_progress = 100
+        
+        cumulative_list.append({'Minggu': f"M{w}", 'Minggu_Int': w, 'Rencana_Kumulatif': cumulative_progress})
+
+    return df, pd.DataFrame(cumulative_list)
+
+# ==========================================
+# 4. KOMPONEN UI & DOWNLOAD
+# ==========================================
+def render_print_style():
+    st.markdown("<style>@media print { [data-testid='stHeader'], [data-testid='stSidebar'], footer { display: none !important; } }</style>", unsafe_allow_html=True)
+
+def render_print_button():
+    components.html("<script>function cetak(){window.parent.print()}</script><button onclick='cetak()'>🖨️ Cetak</button>", height=40)
+
+def render_footer():
+    st.markdown("---")
+    st.caption("SmartRAB-SNI System v2.0")
+
+def to_excel(df, sheet="Sheet1"):
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    df.to_excel(writer, index=False, sheet_name=sheet)
+    writer.close()
+    return output.getvalue()
+
+def generate_rekap_excel(df_rekap, ppn_pct, pt, signer, role):
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    wb = writer.book
+    ws = wb.add_worksheet('Rekap')
+    
+    fmt_curr = wb.add_format({'num_format': '#,##0', 'border': 1})
+    fmt_head = wb.add_format({'bold': True, 'border': 1, 'bg_color': '#ddd'})
+    
+    ws.write('A1', f"PEKERJAAN: {st.session_state['project_name']}")
+    ws.write('A2', f"LOKASI: {st.session_state['project_loc']}")
+    
+    headers = ['No', 'URAIAN', 'TOTAL (Rp)']
+    for c, h in enumerate(headers): ws.write(4, c, h, fmt_head)
+    
+    row = 5
+    total = 0
+    for i, r in df_rekap.iterrows():
+        ws.write(row, 0, i+1, wb.add_format({'border':1}))
+        ws.write(row, 1, r['Divisi'], wb.add_format({'border':1}))
+        ws.write(row, 2, r['Total_Harga'], fmt_curr)
+        total += r['Total_Harga']
+        row += 1
+        
+    ppn = total * (ppn_pct/100)
+    ws.write(row, 1, "TOTAL", fmt_head)
+    ws.write(row, 2, total, fmt_curr)
+    ws.write(row+1, 1, f"PPN {ppn_pct}%", fmt_head)
+    ws.write(row+1, 2, ppn, fmt_curr)
+    ws.write(row+2, 1, "GRAND TOTAL", fmt_head)
+    ws.write(row+2, 2, total+ppn, fmt_curr)
+    
+    writer.close()
+    return output.getvalue()
 
 def render_sni_html(kode, uraian, df_part, overhead_pct):
-    cat_map = {'Upah': 'TENAGA KERJA', 'Material': 'BAHAN', 'Alat': 'PERALATAN'}
-    groups = {'Upah': [], 'Material': [], 'Alat': []}
-    totals = {'Upah': 0, 'Material': 0, 'Alat': 0}
-    
-    for _, row in df_part.iterrows():
-        cat = row['Kategori']
-        if cat not in groups: cat = 'Material'
-        groups[cat].append(row)
-        totals[cat] += row['Subtotal']
+    total = df_part['Subtotal'].sum()
+    ov = total * (overhead_pct/100)
+    html = f"""<div style='border:1px solid #ccc; padding:10px;'>
+    <b>{kode} - {uraian}</b><br><br>
+    <table width='100%' style='border-collapse:collapse;'>
+    <tr style='background:#eee'><th>Komponen</th><th>Sat</th><th>Koef</th><th>Harga</th><th>Juml</th></tr>"""
+    for _, r in df_part.iterrows():
+        html += f"<tr><td>{r['Komponen']}</td><td>{r['Satuan']}</td><td>{r['Koefisien']}</td><td>{r['Harga_Dasar']:,.0f}</td><td>{r['Subtotal']:,.0f}</td></tr>"
+    html += f"<tr style='font-weight:bold'><td colspan='4'>Total + Ovhd {overhead_pct}%</td><td>{total+ov:,.0f}</td></tr></table></div>"
+    return html
 
-    html = f"""<div style="font-family: Arial, sans-serif; font-size: 14px; color: black;">
-    <div style="background-color: #d1d1d1; padding: 10px; border: 1px solid black; font-weight: bold;">ANALISA HARGA SATUAN PEKERJAAN (AHSP) <br>{kode} - {uraian}</div>
-    <table style="width:100%; border-collapse: collapse; border: 1px solid black;">
-    <thead><tr style="background-color: #f0f0f0; text-align: center;">
-    <th style="border: 1px solid black; padding: 5px; width: 5%;">No</th>
-    <th style="border: 1px solid black; padding: 5px; width: 40%;">Uraian</th>
-    <th style="border: 1px solid black; padding: 5px; width: 10%;">Satuan</th>
-    <th style="border: 1px solid black; padding: 5px; width: 10%;">Koefisien</th>
-    <th style="border: 1px solid black; padding: 5px; width: 15%;">Harga Satuan (Rp)</th>
-    <th style="border: 1px solid black; padding: 5px; width: 20%;">Jumlah Harga (Rp)</th>
-    </tr></thead><tbody>"""
-    
-    sections = [('A', 'Upah'), ('B', 'Material'), ('C', 'Alat')]
-    
-    for label, key in sections:
-        items = groups[key]
-        sni_label = cat_map[key]
-        
-        html += f"""<tr style="font-weight: bold; background-color: #fafafa;"><td style="border: 1px solid black; padding: 5px; text-align: center;">{label}</td><td colspan="5" style="border: 1px solid black; padding: 5px;">{sni_label}</td></tr>"""
-        
-        if not items:
-            html += f"""<tr><td colspan="6" style="border: 1px solid black; padding: 5px; text-align: center; color: #888;">- Tidak ada komponen -</td></tr>"""
-        else:
-            for idx, item in enumerate(items):
-                html += f"""<tr>
-                <td style="border: 1px solid black; padding: 5px; text-align: center;">{idx+1}</td>
-                <td style="border: 1px solid black; padding: 5px;">{item['Komponen']}</td>
-                <td style="border: 1px solid black; padding: 5px; text-align: center;">{item['Satuan']}</td>
-                <td style="border: 1px solid black; padding: 5px; text-align: center;">{item['Koefisien']:.4f}</td>
-                <td style="border: 1px solid black; padding: 5px; text-align: right;">{item['Harga_Dasar']:,.2f}</td>
-                <td style="border: 1px solid black; padding: 5px; text-align: right;">{item['Subtotal']:,.2f}</td>
-                </tr>"""
-        
-        html += f"""<tr style="font-weight: bold;"><td colspan="5" style="border: 1px solid black; padding: 5px; text-align: right;">JUMLAH HARGA {sni_label}</td><td style="border: 1px solid black; padding: 5px; text-align: right;">{totals[key]:,.2f}</td></tr>"""
-        
-    total_abc = totals['Upah'] + totals['Material'] + totals['Alat']
-    overhead_val = total_abc * (overhead_pct / 100)
-    final_price = total_abc + overhead_val
-    
-    html += f"""<tr style="background-color: #f9f9f9;"><td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">D</td><td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">JUMLAH (A+B+C)</td><td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{total_abc:,.2f}</td></tr>
-    <tr><td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">E</td><td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">Biaya Umum dan Keuntungan (Overhead) {overhead_pct}% x D</td><td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{overhead_val:,.2f}</td></tr>
-    <tr style="background-color: #d1d1d1; font-size: 16px;"><td style="border: 1px solid black; padding: 5px; text-align: center; font-weight: bold;">F</td><td colspan="4" style="border: 1px solid black; padding: 5px; font-weight: bold;">HARGA SATUAN PEKERJAAN (D+E)</td><td style="border: 1px solid black; padding: 5px; text-align: right; font-weight: bold;">{final_price:,.2f}</td></tr>
-    </tbody></table></div>"""
-    return html
+def generate_excel_template(data_dict, sheet_name):
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    df = pd.DataFrame(data_dict)
+    df.to_excel(writer, index=False, sheet_name=sheet_name)
+    writer.close()
+    return output.getvalue()
 
-# --- 5. Main UI ---
+# ==========================================
+# 5. MAIN UI (TABS)
+# ==========================================
 def main():
-    initialize_data()
-    render_print_style() 
-    
-    st.title("🏗️ SmartRAB-SNI")
-    st.caption("Sistem Integrated RAB & Material Control")
-    
-    tabs = st.tabs([
-        "📊 1. REKAPITULASI", 
-        "📝 2. RAB PROYEK", 
-        "🔍 3. AHSP SNI", 
-        "💰 4. HARGA SATUAN", 
-        "🧱 5. REKAP MATERIAL",
-        "📈 6. KURVA S"
-    ])
+    initialize_data()
+    render_print_style()
+    
+    st.title("🏗️ SmartRAB-SNI")
+    st.caption("Sistem Estimasi Biaya Konstruksi Terintegrasi")
+    
+    tabs = st.tabs(["📊 REKAPITULASI", "📝 RAB PROYEK", "🔍 DETAIL ANALISA", "💰 HARGA DASAR", "🧱 MATERIAL", "📈 KURVA S"])
 
-    # === TAB 1: REKAPITULASI ===
-    with tabs[0]:
-        st.header("Rekapitulasi Biaya (Engineering Estimate)")
-        render_print_button()
-        col_main, col_set = st.columns([2, 1])
-        
-        with col_set:
-            st.markdown("### ⚙️ Pengaturan & Identitas")
-            st.markdown("**Identitas Proyek**")
-            p_name = st.text_input("Nama Pekerjaan", value=st.session_state['project_name'])
-            p_loc = st.text_input("Lokasi", value=st.session_state['project_loc'])
-            p_year = st.text_input("Tahun Anggaran", value=st.session_state['project_year'])
-            
-            if p_name != st.session_state['project_name'] or p_loc != st.session_state['project_loc']:
-                st.session_state['project_name'] = p_name
-                st.session_state['project_loc'] = p_loc
-                st.session_state['project_year'] = p_year
-                st.rerun()
+    # --- TAB 1: REKAP ---
+    with tabs[0]:
+        st.header("Rekapitulasi Biaya (EE)")
+        render_print_button()
+        
+        c1, c2 = st.columns([2, 1])
+        with c2:
+            st.markdown("### ⚙️ Setting")
+            st.session_state['project_name'] = st.text_input("Proyek", st.session_state['project_name'])
+            st.session_state['project_loc'] = st.text_input("Lokasi", st.session_state['project_loc'])
+            st.session_state['project_year'] = st.text_input("Tahun", st.session_state['project_year'])
+            
+            new_ov = st.number_input("Overhead (%)", 0.0, 50.0, st.session_state['global_overhead'])
+            if new_ov != st.session_state['global_overhead']:
+                st.session_state['global_overhead'] = new_ov
+                calculate_system()
+                st.rerun()
+            ppn_val = st.number_input("PPN (%)", 11.0)
 
-            st.write("---")
-            new_overhead = st.number_input(
-                "Margin Profit / Overhead (%)", 
-                min_value=0.0, max_value=50.0, 
-                value=st.session_state['global_overhead'], 
-                step=0.5
-            )
-            if new_overhead != st.session_state['global_overhead']:
-                st.session_state['global_overhead'] = new_overhead
-                calculate_system()
-                st.rerun()
+        df_rab = st.session_state['df_rab']
+        rekap = df_rab.groupby('Divisi')['Total_Harga'].sum().reset_index() if 'Divisi' in df_rab.columns else pd.DataFrame({'Divisi':['Umum'], 'Total_Harga':[0]})
+        
+        total = rekap['Total_Harga'].sum()
+        grand = total * (1 + ppn_val/100)
+        
+        with c1:
+            st.dataframe(rekap, use_container_width=True, hide_index=True, column_config={"Total_Harga": st.column_config.NumberColumn(format="Rp %d")})
+            st.info(f"**GRAND TOTAL (Termasuk PPN {ppn_val}%): Rp {grand:,.0f}**")
+            
+            excel = generate_rekap_excel(rekap, ppn_val, "PT", "Nama", "Jabatan")
+            st.download_button("📥 Download Laporan Excel", excel, "Laporan_RAB.xlsx")
 
-            ppn_input = st.number_input("PPN (%)", value=11.0, step=1.0)
-            pt_input = st.text_input("Nama Perusahaan", value="SMARTSTUDIIO")
-            signer_input = st.text_input("Penandatangan", value="WARTO SANTOSO, ST")
-            pos_input = st.text_input("Jabatan", value="LEADER")
-        
-        df_rab = st.session_state['df_rab']
-        if 'Divisi' in df_rab.columns:
-            rekap_divisi = df_rab.groupby('Divisi')['Total_Harga'].sum().reset_index()
-        else:
-            rekap_divisi = pd.DataFrame({'Divisi': ['Umum'], 'Total_Harga': [df_rab['Total_Harga'].sum()]})
-            
-        total_biaya = rekap_divisi['Total_Harga'].sum()
-        ppn_val = total_biaya * (ppn_input / 100)
-        grand_total_val = total_biaya + ppn_val
-        
-        with col_main:
-            render_project_identity()
-            st.markdown("### Tabel Rekapitulasi")
-            st.dataframe(
-                rekap_divisi, 
-                use_container_width=True, 
-                hide_index=True, 
-                column_config={
-                    "Divisi": st.column_config.TextColumn("URAIAN PEKERJAAN"),
-                    "Total_Harga": st.column_config.NumberColumn("TOTAL (Rp)", format="Rp %d")
-                }
-            )
-            st.markdown(f"""
-            <div style="text-align: right; font-size: 16px; margin-top: 10px;">
-                <b>TOTAL BIAYA : Rp {total_biaya:,.0f}</b><br>
-                <b>PPN {ppn_input}% : Rp {ppn_val:,.0f}</b><br>
-                <b style="font-size: 20px; color: blue;">TOTAL AKHIR : Rp {grand_total_val:,.0f}</b>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        excel_rekap = generate_rekap_final_excel(rekap_divisi, ppn_input, pt_input, signer_input, pos_input)
-        st.download_button("📥 Download Excel Laporan", excel_rekap, "1_Rekapitulasi_Biaya.xlsx")
-        render_footer()
-# === TAB 2: RAB ===
-    with tabs[1]:
-        st.header("Rencana Anggaran Biaya")
-        render_print_button()
-        render_project_identity()
+    # --- TAB 2: RAB (MENU TAMBAH ADA DISINI) ---
+    with tabs[1]:
+        st.header("Rencana Anggaran Biaya")
+        render_print_button()
+        
+        # Panggil Selector AHSP
+        render_ahsp_selector()
+        
+        # === FITUR IMPORT YANG DIKEMBALIKAN ===
+        with st.expander("📂 Opsi Lanjutan / Import Excel RAB"):
+            col_dl, col_up = st.columns([1, 2])
+            with col_dl:
+                template_rab_data = {
+                    'Divisi': ['PEKERJAAN STRUKTUR BAWAH'],
+                    'Uraian_Pekerjaan': ['Contoh: Pondasi Batu Kali'],
+                    'Kode_Analisa_Ref': ['A.2.2.1'],
+                    'Volume': [100]
+                }
+                st.download_button("📥 Download Template Excel", generate_excel_template(template_rab_data, "RAB"), "Template_Volume.xlsx")
+            with col_up:
+                uploaded_rab = st.file_uploader("Upload File Volume RAB (Excel)", type=['xlsx'], key="upload_rab")
+                if uploaded_rab: load_excel_rab_volume(uploaded_rab)
+        # ======================================
+        
+        st.subheader("📋 Tabel Item Pekerjaan")
+        edited = st.data_editor(st.session_state['df_rab'], num_rows="dynamic", use_container_width=True,
+                                column_config={
+                                    "No": st.column_config.NumberColumn(disabled=True),
+                                    "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True),
+                                    "Harga_Satuan_Jadi": st.column_config.NumberColumn(format="Rp %d", disabled=True),
+                                    "Total_Harga": st.column_config.NumberColumn(format="Rp %d", disabled=True)
+                                })
+        if not edited.equals(st.session_state['df_rab']):
+            edited['No'] = range(1, len(edited)+1)
+            st.session_state['df_rab'] = edited
+            calculate_system()
+            st.rerun()
 
-        # --- FITUR BARU: TAMBAH ITEM DARI DATABASE AHSP ---
-        st.markdown("### ➕ Tambah Pekerjaan Baru")
-        with st.container():
-            # 1. Siapkan Data Dropdown (Ambil item unik dari database AHSP)
-            df_analisa_ref = st.session_state['df_analysis'][['Kode_Analisa', 'Uraian_Pekerjaan']].drop_duplicates()
-            
-            # Buat Dictionary untuk mapping Kode -> Nama agar mudah dibaca
-            ahsp_dict = dict(zip(df_analisa_ref['Kode_Analisa'], df_analisa_ref['Uraian_Pekerjaan']))
-            
-            # Layout Input
-            c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
-            
-            with c1:
-                # Dropdown Seleksi dengan Format "KODE - NAMA"
-                pilihan_ahsp = st.selectbox(
-                    "Pilih Item Pekerjaan (Database AHSP)", 
-                    options=df_analisa_ref['Kode_Analisa'],
-                    format_func=lambda x: f"{x} - {ahsp_dict.get(x, '')}"
-                )
-            
-            with c2:
-                # Input Divisi (Bisa ketik baru atau biarkan default)
-                # Kita coba ambil divisi terakhir yang ada di RAB sebagai default agar user tidak ngetik ulang
-                last_divisi = "PEKERJAAN PERSIAPAN"
-                if not st.session_state['df_rab'].empty:
-                    last_divisi = st.session_state['df_rab']['Divisi'].iloc[-1]
-                
-                input_divisi = st.text_input("Kategori / Divisi", value=last_divisi)
-            
-            with c3:
-                input_vol = st.number_input("Volume Awal", min_value=0.0, value=1.0, step=0.1)
+    # --- TAB 3: ANALISA ---
+    with tabs[2]:
+        st.header("Detail Analisa Harga Satuan")
+        df_det = st.session_state['df_analysis_detailed']
+        unique_codes = df_det['Kode_Analisa'].unique()
+        
+        code_map = {}
+        for c in unique_codes:
+            # Ambil nama pekerjaan pertama yang cocok
+            match = st.session_state['df_analysis'][st.session_state['df_analysis']['Kode_Analisa'] == c]
+            if not match.empty:
+                nama = match['Uraian_Pekerjaan'].iloc[0]
+                code_map[c] = f"{c} - {nama}"
+            else:
+                code_map[c] = c
 
-            with c4:
-                st.write("") # Spacer agar tombol turun sedikit sejajar input
-                st.write("")
-                btn_add = st.button("➕ Tambahkan", type="primary")
+        sel_code = st.selectbox("Pilih Analisa:", unique_codes, format_func=lambda x: code_map.get(x, x))
+        
+        df_sub = df_det[df_det['Kode_Analisa'] == sel_code]
+        desc = code_map.get(sel_code, sel_code)
+        st.markdown(render_sni_html(sel_code, desc, df_sub, st.session_state['global_overhead']), unsafe_allow_html=True)
 
-            # Logika Tombol Tambah
-            if btn_add:
-                # Ambil Uraian berdasarkan Kode yang dipilih
-                uraian_fix = ahsp_dict.get(pilihan_ahsp, "Pekerjaan Baru")
-                
-                # Buat Baris Baru
-                new_row = {
-                    'No': len(st.session_state['df_rab']) + 1,
-                    'Divisi': input_divisi,
-                    'Uraian_Pekerjaan': uraian_fix,
-                    'Kode_Analisa_Ref': pilihan_ahsp,
-                    'Satuan_Pek': 'm3',  # Default satuan, bisa diedit nanti di tabel
-                    'Volume': input_vol,
-                    'Harga_Satuan_Jadi': 0.0, # Nanti dihitung otomatis oleh sistem
-                    'Total_Harga': 0.0,
-                    'Durasi_Minggu': 1,
-                    'Minggu_Mulai': 1
-                }
-                
-                # Masukkan ke Session State (Concat DataFrame)
-                st.session_state['df_rab'] = pd.concat([st.session_state['df_rab'], pd.DataFrame([new_row])], ignore_index=True)
-                
-                # Hitung Ulang Sistem & Refresh Halaman
-                calculate_system()
-                st.rerun()
+    # --- TAB 4: HARGA ---
+    with tabs[3]:
+        st.header("Master Harga Dasar")
+        new_prices = st.data_editor(st.session_state['df_prices'], num_rows="dynamic", use_container_width=True,
+                                    column_config={"Harga_Dasar": st.column_config.NumberColumn(format="Rp %d")})
+        if not new_prices.equals(st.session_state['df_prices']):
+            st.session_state['df_prices'] = new_prices
+            calculate_system()
+            st.rerun()
+        
+        with st.expander("📂 Import Harga dari Excel"):
+            uploaded_price = st.file_uploader("Upload File Harga", type=['xlsx'], key="upload_price")
+            if uploaded_price: load_excel_prices(uploaded_price)
 
-        st.divider()
-        # --------------------------------------------------
+    # --- TAB 5: MATERIAL ---
+    with tabs[4]:
+        st.header("Rekap Kebutuhan Material")
+        if 'df_material_rekap' in st.session_state:
+            st.dataframe(st.session_state['df_material_rekap'], use_container_width=True, hide_index=True,
+                         column_config={"Total_Biaya": st.column_config.NumberColumn(format="Rp %d"), "Total_Kebutuhan": st.column_config.NumberColumn(format="%.2f")})
+            st.download_button("📥 Download Material", to_excel(st.session_state['df_material_rekap']), "Material.xlsx")
 
-        # Menampilkan Tabel Editor (Kode Lama tetap dipakai)
-        edited_rab = st.data_editor(
-            st.session_state['df_rab'],
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "No": st.column_config.NumberColumn(disabled=True),
-                "Divisi": st.column_config.TextColumn(disabled=False, help="Kelompokkan pekerjaan di sini"),
-                "Uraian_Pekerjaan": st.column_config.TextColumn(disabled=True, width="large"),
-                "Kode_Analisa_Ref": st.column_config.TextColumn(disabled=True, help="Otomatis dari AHSP"),
-                "Satuan_Pek": st.column_config.TextColumn("Satuan", width="small"),
-                "Harga_Satuan_Jadi": st.column_config.NumberColumn("Harsat (+Ovhd)", format="Rp %d", disabled=True),
-                "Total_Harga": st.column_config.NumberColumn("Total", format="Rp %d", disabled=True),
-                "Volume": st.column_config.NumberColumn("Volume", disabled=False),
-                "Durasi_Minggu": st.column_config.NumberColumn("Durasi (Mgg)", min_value=1, disabled=False),
-                "Minggu_Mulai": st.column_config.NumberColumn("Start (Mgg)", min_value=1, disabled=False)
-            }
-        )
-        
-        # Logika Simpan Perubahan di Tabel Editor
-        if not edited_rab.equals(st.session_state['df_rab']):
-            # Update nomor urut otomatis jika ada yang dihapus/ditambah manual lewat tabel
-            edited_rab['No'] = range(1, len(edited_rab) + 1)
-            st.session_state['df_rab'] = edited_rab
-            calculate_system()
-            st.rerun()
+    # --- TAB 6: KURVA S ---
+    with tabs[5]:
+        st.header("Jadwal & Kurva S")
+        df_rab_c, df_curve = generate_s_curve_data()
+        if df_curve is not None:
+            chart = alt.Chart(df_curve).mark_line(point=True).encode(
+                x='Minggu_Int', y='Rencana_Kumulatif', tooltip=['Minggu', 'Rencana_Kumulatif']
+            ).interactive()
+            st.altair_chart(chart, use_container_width=True)
+            st.dataframe(df_curve.set_index('Minggu'), use_container_width=True)
+        else:
+            st.warning("Data belum cukup.")
 
-        total_rab = st.session_state['df_rab']['Total_Harga'].sum()
-        st.markdown(f"""
-        <div style="background-color: #e6f3ff; padding: 15px; border-radius: 8px; text-align: right; border: 1px solid #2980b9; margin-top: 10px;">
-            <h2 style="color: #2c3e50; margin:0;">TOTAL JUMLAH: Rp {total_rab:,.0f}</h2>
-            <small>Termasuk Overhead {st.session_state['global_overhead']}%</small>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.expander("📂 Opsi Lanjutan (Import / Download)"):
-            col_dl, col_up = st.columns([1, 2])
-            with col_dl:
-                template_rab_data = {
-                    'Divisi': ['PEKERJAAN STRUKTUR BAWAH'],
-                    'Uraian_Pekerjaan': ['Contoh: Pondasi Batu Kali'],
-                    'Kode_Analisa_Ref': ['A.2.2.1'],
-                    'Volume': [100]
-                }
-                st.download_button("📥 Download Template Excel", generate_excel_template(template_rab_data, "RAB"), "Template_Volume.xlsx")
-            with col_up:
-                uploaded_rab = st.file_uploader("Upload File Volume (Excel)", type=['xlsx'], key="upload_rab")
-                if uploaded_rab: load_excel_rab_volume(uploaded_rab)
-        
-        st.download_button("📥 Download Excel RAB Lengkap", to_excel_download(st.session_state['df_rab'], "RAB"), "2_RAB_Detail.xlsx")
-        render_footer()
-    
-    # === TAB 3, 4, 5 (Standard) ===
-    with tabs[2]:
-        st.header("Detail Analisa (AHSP)")
-        render_print_button()
-        col_sel, col_ov = st.columns([3, 1])
-        with col_sel:
-            df_det = st.session_state['df_analysis_detailed']
-            unique_codes = df_det['Kode_Analisa'].unique()
-            code_map = {c: f"{c} - {df_det[df_det['Kode_Analisa'] == c]['Uraian_Pekerjaan'].iloc[0]}" for c in unique_codes}
-            selected_code = st.selectbox("Pilih Pekerjaan:", unique_codes, format_func=lambda x: code_map[x])
-        with col_ov:
-            st.metric("Overhead Global", f"{st.session_state['global_overhead']}%")
-
-        df_selected = df_det[df_det['Kode_Analisa'] == selected_code]
-        desc_selected = df_selected['Uraian_Pekerjaan'].iloc[0]
-        st.markdown(render_sni_html(selected_code, desc_selected, df_selected, st.session_state['global_overhead']), unsafe_allow_html=True)
-        st.download_button("📥 Download Analisa", to_excel_download(df_det, "AHSP"), "3_Analisa.xlsx")
-        render_footer()
-
-    with tabs[3]:
-        st.header("Master Harga Satuan")
-        render_print_button()
-        edited_prices = st.data_editor(st.session_state['df_prices'], num_rows="dynamic", use_container_width=True, 
-                                       column_config={"Harga_Dasar": st.column_config.NumberColumn(format="Rp %d"), "Kategori": st.column_config.SelectboxColumn(options=['Upah', 'Material', 'Alat'], required=True)})
-        if not edited_prices.equals(st.session_state['df_prices']):
-            st.session_state['df_prices'] = edited_prices
-            calculate_system()
-            st.rerun()
-        
-        with st.expander("📂 Import Harga"):
-             uploaded_price = st.file_uploader("Upload File", type=['xlsx'], key="upload_price")
-             if uploaded_price: load_excel_prices(uploaded_price)
-
-        st.download_button("📥 Download Harga", to_excel_download(st.session_state['df_prices'], "Harga"), "4_Harga.xlsx")
-        render_footer()
-
-    with tabs[4]:
-        st.header("Rekap Material (Real Cost)")
-        render_print_button()
-        if 'df_material_rekap' in st.session_state:
-            st.dataframe(st.session_state['df_material_rekap'], use_container_width=True, hide_index=True, 
-                         column_config={"Total_Biaya_Material": st.column_config.NumberColumn(format="Rp %d"), "Total_Kebutuhan_Material": st.column_config.NumberColumn(format="%.2f")})
-            
-            total_mat = st.session_state['df_material_rekap']['Total_Biaya_Material'].sum()
-            profit = total_mat * (st.session_state['global_overhead']/100)
-            
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Modal (Real Cost)", f"Rp {total_mat:,.0f}")
-            col2.metric(f"Profit ({st.session_state['global_overhead']}%)", f"Rp {profit:,.0f}")
-            col3.metric("Total Jual (RAB)", f"Rp {total_mat+profit:,.0f}")
-            
-            st.download_button("📥 Download Rekap", to_excel_download(st.session_state['df_material_rekap'], "Material"), "5_Rekap_Material.xlsx")
-        render_footer()
-
-    # === TAB 6: KURVA S ===
-    with tabs[5]:
-        st.header("📈 Kurva S - Jadwal Proyek")
-        render_print_button()
-        df_rab_curve, df_curve_data = generate_s_curve_data()
-        
-        if df_curve_data is not None:
-            chart = alt.Chart(df_curve_data).mark_line(point=True, strokeWidth=3).encode(
-                x=alt.X('Minggu_Int', title='Minggu Ke-', scale=alt.Scale(domainMin=1)),
-                y=alt.Y('Rencana_Kumulatif', title='Bobot Kumulatif (%)', scale=alt.Scale(domain=[0, 100])),
-                tooltip=['Minggu', 'Rencana_Kumulatif']
-            ).interactive()
-            st.altair_chart(chart, use_container_width=True)
-            with st.expander("Lihat Data Mingguan"):
-                 st.dataframe(df_curve_data.set_index('Minggu'), use_container_width=True)
-        else:
-            st.warning("Data RAB belum lengkap.")
-        render_footer()
+    render_footer()
 
 if __name__ == "__main__":
-    main()
-
-
-
+    main()
