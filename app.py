@@ -4,6 +4,156 @@ import io
 import xlsxwriter
 import altair as alt
 import streamlit.components.v1 as components
+import streamlit as st
+import pandas as pd
+
+# ==========================================
+# 1. MODUL DATABASE AHSP (KATALOGISASI)
+# ==========================================
+def load_ahsp_database():
+    """
+    Memuat data katalog AHSP berdasarkan Laporan Arsitektur Teknis.
+    Data ini diambil dari Divisi 1 - 6 (Cipta Karya).
+    """
+    data = [
+        # --- Divisi 1: Persiapan ---
+        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Sementara Kayu (Tinggi 2m)", "Unit": "m'", "Price": 787300},
+        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Seng Gelombang Rangka Kayu", "Unit": "m'", "Price": 635500},
+        {"Category": "Divisi 1: Persiapan", "Item": "Pagar Kawat Duri (Tinggi 2m)", "Unit": "m'", "Price": 378200},
+        {"Category": "Divisi 1: Persiapan", "Item": "Direksi Keet / Gudang (Lantai Plester)", "Unit": "m2", "Price": 3501200},
+        {"Category": "Divisi 1: Persiapan", "Item": "Pembersihan Lahan & Stripping", "Unit": "m2", "Price": 12100},
+        {"Category": "Divisi 1: Persiapan", "Item": "Bouwplank (Pengukuran)", "Unit": "m'", "Price": 171500},
+
+        # --- Divisi 2: Pekerjaan Tanah ---
+        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Biasa (Manual, 0-1m)", "Unit": "m3", "Price": 90800},
+        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Biasa (Manual, 1-2m)", "Unit": "m3", "Price": 108900},
+        {"Category": "Divisi 2: Tanah", "Item": "Galian Tanah Berbatu (Manual, 0-1m)", "Unit": "m3", "Price": 151500},
+        {"Category": "Divisi 2: Tanah", "Item": "Urugan Pasir", "Unit": "m3", "Price": 372500},
+        {"Category": "Divisi 2: Tanah", "Item": "Urugan Tanah Kembali (Manual)", "Unit": "m3", "Price": 60500},
+
+        # --- Divisi 3: Struktur ---
+        {"Category": "Divisi 3: Struktur", "Item": "Pondasi Batu Belah (Anstamping)", "Unit": "m3", "Price": 657500},
+        {"Category": "Divisi 3: Struktur", "Item": "Beton K-250 (Ready Mix - Material Only)", "Unit": "m3", "Price": 1382600},
+        {"Category": "Divisi 3: Struktur", "Item": "Pembesian Besi Polos (Terpasang)", "Unit": "kg", "Price": 18400},
+        {"Category": "Divisi 3: Struktur", "Item": "Bekisting Kolom (3x Pakai)", "Unit": "m2", "Price": 226400},
+        {"Category": "Divisi 3: Struktur", "Item": "Rangka Atap Baja Ringan (C75)", "Unit": "m2", "Price": 298600},
+
+        # --- Divisi 4: Arsitektur ---
+        {"Category": "Divisi 4: Arsitektur", "Item": "Pasangan Dinding Bata Merah (1/2 Batu)", "Unit": "m2", "Price": 123400},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Pasangan Dinding Bata Merah (1 Batu)", "Unit": "m2", "Price": 278300},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Plesteran 1:6 (Tebal 15mm)", "Unit": "m2", "Price": 55000},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Acian Semen", "Unit": "m2", "Price": 45200},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Lantai Ubin PC (20x20cm)", "Unit": "m2", "Price": 112400},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Plafon Akustik (30x30cm)", "Unit": "m2", "Price": 117300},
+        {"Category": "Divisi 4: Arsitektur", "Item": "Cat Dinding Interior", "Unit": "m2", "Price": 70100},
+
+        # --- Divisi 5: MEP ---
+        {"Category": "Divisi 5: MEP", "Item": "Pipa PVC AW 1/2 Inch", "Unit": "m'", "Price": 20400},
+        {"Category": "Divisi 5: MEP", "Item": "Pipa PVC AW 4 Inch", "Unit": "m'", "Price": 227600},
+        {"Category": "Divisi 5: MEP", "Item": "Kabel NYY 1x4 mm2", "Unit": "m'", "Price": 19400},
+        {"Category": "Divisi 5: MEP", "Item": "Biofilter Septic Tank (2 m3)", "Unit": "unit", "Price": 32730300},
+    ]
+    return pd.DataFrame(data)
+
+# ==========================================
+# 2. FUNGSI INJEKSI (STRATEGI BYPASS)
+# ==========================================
+def render_ahsp_selector():
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📚 Database AHSP (Cipta Karya)")
+    
+    df_ahsp = load_ahsp_database()
+    
+    # 1. Dropdown Kategori
+    kategori_list = df_ahsp['Category'].unique()
+    selected_category = st.sidebar.selectbox("Pilih Divisi Pekerjaan", kategori_list)
+    
+    # 2. Dropdown Item (Filter berdasarkan Kategori)
+    filtered_items = df_ahsp[df_ahsp['Category'] == selected_category]
+    selected_item_name = st.sidebar.selectbox("Pilih Item Pekerjaan", filtered_items['Item'].unique())
+    
+    # Ambil detail item
+    item_row = filtered_items[filtered_items['Item'] == selected_item_name].iloc[0]
+    st.sidebar.info(f"Satuan: {item_row['Unit']} | Harga Estimasi: Rp {item_row['Price']:,.0f}")
+    
+    # 3. Input Parameter Proyek
+    col_vol, col_dur = st.sidebar.columns(2)
+    with col_vol:
+        vol_input = st.number_input("Volume", min_value=1.0, value=10.0, step=1.0, key='vol_ahsp')
+    with col_dur:
+        dur_input = st.number_input("Durasi (Mg)", min_value=1, value=1, key='dur_ahsp')
+    start_input = st.sidebar.number_input("Minggu Ke-", min_value=1, value=1, key='start_ahsp')
+
+    # 4. Eksekusi Tombol Tambah
+    if st.sidebar.button("➕ Masukkan ke RAB"):
+        try:
+            # A. Generate Kode Unik
+            # Format AHSP-XXX agar tidak bentrok dengan kode Excel lama
+            next_id = len(st.session_state.df_analysis['Kode_Analisa'].unique()) + 9000
+            new_code = f"AHSP-{next_id}"
+            
+            # Normalisasi Key (PENTING untuk calculate_system)
+            clean_key = selected_item_name.lower().strip()
+
+            # B. Update df_prices (Harga Dasar)
+            # Kita masukkan harga jadi sebagai harga 'Material'
+            new_price = {
+                'Kode': f"M-{next_id}",
+                'Komponen': selected_item_name,
+                'Satuan': item_row['Unit'],
+                'Harga_Dasar': item_row['Price'],
+                'Kategori': 'Material',
+                'Key': clean_key
+            }
+            st.session_state.df_prices = pd.concat([
+                st.session_state.df_prices, 
+                pd.DataFrame([new_price])
+            ], ignore_index=True)
+
+            # C. Update df_analysis (Resep)
+            # Koefisien 1.0 -> Artinya 1 m2 Dinding butuh 1 unit "Dinding Jadi"
+            new_analysis = {
+                'Kode_Analisa': new_code,
+                'Komponen': selected_item_name,
+                'Koefisien': 1.0,
+                'Key': clean_key
+            }
+            st.session_state.df_analysis = pd.concat([
+                st.session_state.df_analysis, 
+                pd.DataFrame([new_analysis])
+            ], ignore_index=True)
+
+            # D. Update df_rab (Bill of Quantities)
+            new_rab = {
+                'No': len(st.session_state.df_rab) + 1,
+                'Divisi': selected_category,
+                'Uraian_Pekerjaan': selected_item_name,
+                'Kode_Analisa_Ref': new_code,
+                'Satuan_Pek': item_row['Unit'],
+                'Volume': vol_input,
+                'Harga_Satuan_Jadi': 0, # Nanti dihitung ulang system
+                'Total_Harga': 0,       # Nanti dihitung ulang system
+                'Bobot': 0,
+                'Durasi_Minggu': dur_input,
+                'Minggu_Mulai': start_input
+            }
+            st.session_state.df_rab = pd.concat([
+                st.session_state.df_rab, 
+                pd.DataFrame([new_rab])
+            ], ignore_index=True)
+
+            st.sidebar.success(f"Sukses! {selected_item_name} ditambahkan.")
+            st.experimental_rerun()
+
+        except Exception as e:
+            st.sidebar.error(f"Terjadi kesalahan: {e}")
+
+# ==========================================
+# CARA PENGGUNAAN:
+# Panggil function `render_ahsp_selector()` 
+# di dalam main block aplikasi Anda, 
+# misalnya tepat setelah `render_sidebar_menu()`
+# ==========================================
 
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="SmartRAB-SNI", layout="wide")
@@ -690,5 +840,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
