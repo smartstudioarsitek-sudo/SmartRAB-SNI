@@ -109,13 +109,18 @@ def calculate_system():
     unit_prices_pure = merged_analysis.groupby('Kode_Analisa')['Subtotal'].sum().reset_index()
     unit_prices_pure['Harga_Kalkulasi'] = unit_prices_pure['Subtotal'] * overhead_factor 
     
+    # === PERBAIKAN: Samakan Tipe Data Sebelum Merge ===
+    df_r['Kode_Analisa_Ref'] = df_r['Kode_Analisa_Ref'].astype(str).str.strip()
+    unit_prices_pure['Kode_Analisa'] = unit_prices_pure['Kode_Analisa'].astype(str).str.strip()
+    # ==================================================
+
     # 2. Update RAB
     df_r_temp = pd.merge(df_r, unit_prices_pure[['Kode_Analisa', 'Harga_Kalkulasi']], left_on='Kode_Analisa_Ref', right_on='Kode_Analisa', how='left')
     df_r['Harga_Satuan_Jadi'] = df_r_temp['Harga_Kalkulasi'].fillna(0)
     df_r['Total_Harga'] = df_r['Volume'] * df_r['Harga_Satuan_Jadi']
     st.session_state['df_rab'] = df_r
 
-    # 3. Hitung Rekap Material
+    # 3. Hitung Rekap Material (Lanjutan kode lama tetap sama...)
     material_breakdown = pd.merge(
         df_r[['Kode_Analisa_Ref', 'Volume']], 
         merged_analysis[['Kode_Analisa', 'Komponen', 'Satuan', 'Koefisien', 'Harga_Dasar']], 
@@ -132,7 +137,6 @@ def calculate_system():
     }).reset_index()
     
     st.session_state['df_material_rekap'] = rekap_final
-
 # --- 3. Logic Kurva S ---
 def generate_s_curve_data():
     df = st.session_state['df_rab'].copy()
@@ -318,11 +322,18 @@ def load_excel_prices(uploaded_file):
 
 def load_excel_rab_volume(uploaded_file):
     try:
+        # Tambahkan dtype={'Kode_Analisa_Ref': str} agar dibaca sebagai text sejak awal
         df_new = pd.read_excel(uploaded_file)
+        
         required = ['Divisi', 'Uraian_Pekerjaan', 'Kode_Analisa_Ref', 'Volume']
         if not set(required).issubset(df_new.columns):
             st.error(f"Format Excel salah! Wajib ada kolom: {required}")
             return
+        
+        # === PERBAIKAN UTAMA DI SINI ===
+        # Paksa kolom Kode_Analisa_Ref menjadi string (teks) dan hapus spasi kosong
+        df_new['Kode_Analisa_Ref'] = df_new['Kode_Analisa_Ref'].astype(str).str.strip()
+        # ===============================
         
         df_clean = df_new[required].copy()
         df_clean['No'] = range(1, len(df_clean) + 1)
@@ -679,4 +690,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
