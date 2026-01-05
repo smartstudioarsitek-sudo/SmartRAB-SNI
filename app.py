@@ -201,7 +201,7 @@ def process_smart_import(uploaded_file):
 def main():
     st.title("💰 SmartRAB - Estimasi Biaya Cerdas")
     
-    # --- Sidebar ---
+# --- Sidebar ---
     with st.sidebar:
         st.header("📋 Data Proyek")
         st.session_state['project_name'] = st.text_input("Nama Proyek", st.session_state['project_name'])
@@ -213,18 +213,36 @@ def main():
         # STATUS DATABASE
         if st.session_state['df_master'] is None:
             st.error("❌ Database Belum Terbaca")
-            st.info("Sistem tidak menemukan file otomatis. Silakan upload manual di bawah ini:")
+            st.info("Silakan upload file Database (DHSP):")
             
-            # FITUR UPLOAD MANUAL (Solusi Error)
-            uploaded_master = st.file_uploader("Upload 'data_rab.xlsx - Daftar Harga Satuan Pekerjaan.csv'", type=['csv'])
+            # PERBAIKAN: Menerima CSV dan XLSX
+            uploaded_master = st.file_uploader("Upload File DHSP", type=['csv', 'xlsx'])
+            
             if uploaded_master:
-                # Baca header baris ke-6 (index 5) sesuai file Kakak
-                df_uploaded = pd.read_csv(uploaded_master, header=5) 
-                df_clean = clean_master_data(df_uploaded)
-                if not df_clean.empty:
-                    st.session_state['df_master'] = df_clean
-                    st.success("Database berhasil dimuat manual!")
-                    st.rerun()
+                try:
+                    df_uploaded = None
+                    # 1. Cek jika file adalah Excel (.xlsx)
+                    if uploaded_master.name.endswith('.xlsx'):
+                        df_uploaded = pd.read_excel(uploaded_master, header=5)
+                    
+                    # 2. Jika CSV, gunakan engine python untuk deteksi otomatis separator (; atau ,)
+                    else:
+                        df_uploaded = pd.read_csv(uploaded_master, header=5, sep=None, engine='python')
+                    
+                    # Bersihkan Data
+                    if df_uploaded is not None:
+                        df_clean = clean_master_data(df_uploaded)
+                        if not df_clean.empty:
+                            st.session_state['df_master'] = df_clean
+                            st.success("Database berhasil dimuat!")
+                            st.rerun()
+                        else:
+                            st.warning("File terbaca tapi kolom tidak sesuai (Wajib: NO, URAIAN, SATUAN, HARGA)")
+                            
+                except Exception as e:
+                    st.error(f"Gagal membaca file: {e}")
+                    st.caption("Tips: Pastikan Header (Judul Kolom) berada di baris ke-6.")
+
         else:
             st.success(f"✅ Database Aktif: {len(st.session_state['df_master'])} Item")
             if st.button("🔄 Reset / Ganti Database"):
@@ -320,3 +338,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
