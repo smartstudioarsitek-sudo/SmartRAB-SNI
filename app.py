@@ -226,7 +226,7 @@ def calculate_system():
     st.session_state['df_material_rekap'] = mat_bk.groupby(['Komponen', 'Satuan']).agg({'Total_Kebutuhan': 'sum', 'Total_Biaya': 'sum'}).reset_index()
 
 # ==========================================
-# 3. UI SIDEBAR & NAVIGASI
+# 3. UI SIDEBAR & NAVIGASI (REVISI ANTI-ERROR)
 # ==========================================
 def render_sidebar():
     st.sidebar.title("🔧 Data Center")
@@ -253,11 +253,16 @@ def render_sidebar():
     
     if not df_det.empty:
         # Grouping untuk Sidebar Dropdown
-        unique_items = df_det.drop_duplicates(subset=['Kode_Analisa'])
+        unique_items = df_det.drop_duplicates(subset=['Kode_Analisa']).copy() # Tambah .copy() agar aman
         
-        # Filter Divisi (Menggunakan Divisi_Ref jika ada hasil deteksi file, jika tidak pakai logic kode)
+        # --- PERBAIKAN ERROR DI SINI ---
+        # 1. Pastikan kolom Divisi_Ref ada
         if 'Divisi_Ref' not in unique_items.columns:
             unique_items['Divisi_Ref'] = "Umum"
+        
+        # 2. Bersihkan Data Kosong (NaN) menjadi string "Umum" agar fungsi sorted() tidak crash
+        unique_items['Divisi_Ref'] = unique_items['Divisi_Ref'].fillna("Umum").astype(str)
+        # -------------------------------
             
         div_list = sorted(unique_items['Divisi_Ref'].unique())
         sel_div = st.sidebar.selectbox("Filter Divisi:", ["Semua"] + list(div_list))
@@ -297,7 +302,6 @@ def render_sidebar():
                 st.session_state.df_rab = pd.concat([st.session_state.df_rab, pd.DataFrame([new_row])], ignore_index=True)
                 calculate_system()
                 st.rerun()
-
 # ==========================================
 # 4. INISIALISASI DATA (SEED)
 # ==========================================
@@ -490,3 +494,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
