@@ -12,15 +12,22 @@ st.set_page_config(page_title="SmartRAB-SNI 2025", layout="wide", page_icon="�
 
 def clean_currency_str(val):
     """
-    Membersihkan format mata uang Indonesia (Rp 1.000.000,00) menjadi float.
-    Menghapus 'Rp', titik ribuan, dan menangani koma desimal.
+    Membersihkan format mata uang/angka menjadi float.
+    Mendukung format: Rp 1.000.000,00 atau 126000 (integer)
     """
     if pd.isna(val) or val == '':
         return 0.0
-    # Hapus Rp, spasi, dan titik pemisah ribuan
-    s = str(val).replace('Rp', '').replace('.', '').replace(' ', '')
-    # Ganti koma desimal dengan titik
-    s = s.replace(',', '.')
+    if isinstance(val, (int, float)):
+        return float(val)
+        
+    s = str(val).replace('Rp', '').replace(' ', '')
+    # Jika ada titik ribuan dan koma desimal (format Indo)
+    if ',' in s and '.' in s:
+        s = s.replace('.', '').replace(',', '.')
+    # Jika hanya ada titik (mungkin ribuan atau desimal, asumsi ribuan jika > 3 digit)
+    elif '.' in s and len(s.split('.')[-1]) == 3:
+        s = s.replace('.', '')
+    
     try:
         return float(s)
     except ValueError:
@@ -32,6 +39,8 @@ def clean_coefficient(val):
     """
     if pd.isna(val) or val == '':
         return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
     s = str(val).replace(',', '.')
     try:
         return float(s)
@@ -45,7 +54,7 @@ def normalize_text(text):
     """
     if not isinstance(text, str):
         return ""
-    return text.lower().strip().replace('"', '').replace("'", "")
+    return text.lower().strip().replace('"', '').replace("'", "").replace("  ", " ")
 
 # ==========================================
 # 2. MESIN ETL (AHSP DATA MANAGER)
@@ -60,24 +69,30 @@ class AHSPDataManager:
         if 'db_prices' not in st.session_state:
             st.session_state.db_prices = pd.DataFrame()
         if 'db_analysis' not in st.session_state:
-            # Dictionary untuk menyimpan struktur pohon analisis
-            # Key: Kode Analisa, Value: Dict detail
             st.session_state.db_analysis = {} 
 
     def load_basic_prices(self, file_obj):
         """
         Memproses file 'Upah Bahan.csv'.
-        File ini adalah sumber kebenaran (source of truth) untuk harga dasar.
         """
         try:
-            # File SNI biasanya memiliki header metadata di baris-baris awal
-            # Kita skip 6 baris pertama berdasarkan struktur 
+            # Membaca CSV tanpa header, karena struktur data agak berantakan di baris awal
+            # Berdasarkan inspeksi file: Data dimulai efektif setelah baris header di index 5/6
             df = pd.read_csv(file_obj, header=None, skiprows=6)
             
-            # Mapping kolom berdasarkan standar SNI
-            # Col 1: Kode, Col 2: Uraian, Col 3: Satuan, Col 4: Harga
-            df_clean = df.iloc[:, ].copy()
-            df_clean.columns =
+            # Mapping kolom berdasarkan inspeksi struktur file aktual:
+            # Col Index 4: Kode (L.01)
+            # Col Index 5: Uraian (Pekerja)
+            # Col Index 6: Satuan (OH)
+            # Col Index 7: Harga (126000)
+            
+            # Pastikan file memiliki cukup kolom
+            if df.shape[1] < 8:
+                st.error("Format file Upah Bahan tidak sesuai (jumlah kolom kurang).")
+                return 0
+
+            df_clean = df.iloc[:, [4, 5, 6, 7]].copy()
+            df_clean.columns = ['Kode', 'Uraian', 'Satuan', 'Harga']
             
             # Data Cleaning
             df_clean = df_clean.dropna(subset=['Uraian'])
@@ -87,6 +102,7 @@ class AHSPDataManager:
             # Kategorisasi Otomatis berdasarkan Kode
             def get_category(code):
                 c = str(code).upper()
+                if pd.isna(c) or c == 'NAN': return 'Lainnya'
                 if c.startswith('L'): return 'Upah'
                 if c.startswith('M'): return 'Bahan'
                 if c.startswith('E'): return 'Alat'
@@ -102,8 +118,8 @@ class AHSPDataManager:
 
     def load_analysis_file(self, file_obj, division_name):
         """
-        Parser Cerdas untuk file Analisis (Beton, Galian, dll).[1, 1]
-        Menggunakan logika State Machine untuk mendeteksi struktur hierarkis.
+        Parser Cerdas untuk file Analisis (Beton, Galian, dll).
+        Menggunakan logika kolom offset yang disesuaikan dengan file upload.
         """
         try:
             df = pd.read_csv(file_obj, header=None)
@@ -112,45 +128,48 @@ class AHSPDataManager:
             current_item_desc = None
             current_section = None # 'Upah', 'Bahan', 'Alat'
             
-            # Pola Regex untuk mendeteksi Kode Analisa (misal: 2.2.1.1, A.2.2.1)
-            code_pattern = re.compile(r'^[\dA-Z]+\.[\d\.]+[a-zA-Z]?$')
+            # Regex: Kode Analisa (misal: 2.2.1.1, A.2.2.1, 10.1.1)
+            # Membolehkan angka dan titik, serta huruf di depan opsional
+            code_pattern = re.compile(r'^[A-Z]?\d+(\.\d+)+[a-zA-Z]?$')
             
             items_found = 0
             
             for _, row in df.iterrows():
-                # Ekstraksi kolom dengan penanganan nilai kosong
-                c1 = str(row).strip() if pd.notna(row) else "" # Potensi Kode
-                c2 = str(row).strip() if pd.notna(row) else "" # Potensi Kode/Deskripsi
-                c3 = str(row).strip() if pd.notna(row) else "" # Potensi Deskripsi/Satuan
-                c5 = row # Biasanya letak Koefisien 
+                # Akses kolom dengan aman (handle jika kolom NaN)
+                # Berdasarkan inspeksi file:
+                # Col 2: Kode Analisa / No Urut Komponen
+                # Col 3: Deskripsi Item / Nama Komponen
+                # Col 5: Koefisien
+                
+                c2 = str(row[2]).strip() if pd.notna(row[2]) else "" # Potensi Kode Header
+                c3 = str(row[3]).strip() if pd.notna(row[3]) else "" # Deskripsi / Nama Komponen
+                c5_val = row[5] # Koefisien (raw)
                 
                 # --- LOGIKA DETEKSI HEADER PEKERJAAN ---
-                # Cek Kolom 1 atau Kolom 2 untuk pola kode
                 detected_code = None
-                detected_desc = None
                 
-                if code_pattern.match(c1) and len(c2) > 5:
-                    detected_code = c1
-                    detected_desc = c2
-                elif code_pattern.match(c2) and len(c3) > 5:
+                # Jika Col 2 cocok pola kode analisa (misal 2.2.1.1) dan Deskripsi cukup panjang
+                if code_pattern.match(c2) and len(c3) > 5:
                     detected_code = c2
                     detected_desc = c3
                 
                 if detected_code:
-                    # Inisialisasi Item Baru dalam Database
+                    # Inisialisasi Item Baru
                     current_item_code = detected_code
                     current_item_desc = detected_desc
+                    current_section = None # Reset section saat ganti item
                     st.session_state.db_analysis[current_item_code] = {
                         'deskripsi': current_item_desc,
                         'divisi': division_name,
-                        'komponen':
+                        'komponen': []
                     }
                     items_found += 1
-                    continue # Lanjut ke baris berikutnya
+                    continue 
 
                 # --- LOGIKA DETEKSI SEKSI SUMBER DAYA ---
-                # Mendeteksi baris pemisah "A. TENAGA", "B. BAHAN"
-                row_text = " ".join([str(x) for x in row.values]).upper()
+                # Menggabungkan seluruh text di baris untuk mencari keyword
+                row_text = " ".join([str(x) for x in row.values if pd.notna(x)]).upper()
+                
                 if 'TENAGA KERJA' in row_text:
                     current_section = 'Upah'
                     continue
@@ -162,20 +181,20 @@ class AHSPDataManager:
                     continue
 
                 # --- LOGIKA EKSTRAKSI KOMPONEN ---
-                # Baris komponen valid harus memiliki koefisien numerik
-                coef = clean_coefficient(c5)
+                coef = clean_coefficient(c5_val)
                 if current_item_code and current_section and coef > 0:
-                    # Nama komponen biasanya di kolom 2 atau 3
-                    # Prioritaskan kolom yang memiliki teks panjang
-                    comp_name = c2 if len(c2) > 3 else c3
+                    # Nama komponen ada di Col 3
+                    comp_name = c3
                     
-                    st.session_state.db_analysis[current_item_code]['komponen'].append({
-                        'nama': comp_name,
-                        'nama_norm': normalize_text(comp_name),
-                        'tipe': current_section,
-                        'koefisien': coef,
-                        'satuan': str(row) if pd.notna(row) else ''
-                    })
+                    # Validasi: Nama komponen tidak boleh kosong atau angka saja
+                    if len(comp_name) > 2 and not comp_name.replace('.','').isdigit():
+                        st.session_state.db_analysis[current_item_code]['komponen'].append({
+                            'nama': comp_name,
+                            'nama_norm': normalize_text(comp_name),
+                            'tipe': current_section,
+                            'koefisien': coef,
+                            'satuan': str(row[4]) if pd.notna(row[4]) else '' # Col 4 biasanya satuan
+                        })
             
             return items_found
         except Exception as e:
@@ -188,60 +207,49 @@ class AHSPDataManager:
 def calculate_catalog_prices():
     """
     Menghitung Harga Satuan Jadi untuk setiap item analisis.
-    Melakukan 'Linking' antara Analisis dan Harga Dasar.
     """
     if not st.session_state.db_analysis or st.session_state.db_prices.empty:
         return pd.DataFrame()
 
-    # 1. Buat Lookup Dictionary untuk kecepatan akses O(1)
-    # Mapping: Nama Normalisasi -> Harga
+    # 1. Lookup Dictionary: Nama Normalisasi -> Harga
     price_map = dict(zip(
         st.session_state.db_prices['Uraian_Norm'], 
         st.session_state.db_prices['Harga']
     ))
     
-    catalog_data =
+    catalog_data = []
     
-    # 2. Iterasi setiap item pekerjaan (Analisa)
+    # 2. Iterasi Analisa
     for code, item in st.session_state.db_analysis.items():
         biaya_upah = 0
         biaya_bahan = 0
         biaya_alat = 0
         
-        detail_components = # Untuk audit trail
-        
         for comp in item['komponen']:
             c_name = comp['nama_norm']
             unit_price = 0
-            match_type = "None"
             
-            # --- STRATEGI PENCOCOKAN HARGA (FUZZY LOGIC SEDERHANA) ---
-            # A. Pencocokan Eksak
+            # --- STRATEGI PENCOCOKAN HARGA ---
+            # A. Exact Match
             if c_name in price_map:
                 unit_price = price_map[c_name]
-                match_type = "Exact"
             else:
-                # B. Pencocokan Parsial (Fallback)
-                # Contoh: "Semen" di Analisa vs "Semen Portland (PC)" di Harga
-                # Kita cari apakah ada key di price_map yang mengandung kata kunci komponen
-                # Ini mahal secara komputasi, tapi diperlukan untuk data SNI yang tidak bersih
+                # B. Partial Match (Fallback)
+                # Cari string yang mengandung kata kunci
+                # Optimasi: Hanya cari jika panjang string cukup spesifik
                 for k, v in price_map.items():
-                    # Jika nama komponen (misal: "batu kali") ada di dalam nama harga ("batu kali belah")
-                    if c_name in k or k in c_name:
+                    # Jika komponen terkandung dalam master harga (ex: "Semen" in "Semen Portland")
+                    # ATAU master harga terkandung dalam komponen (ex: "Paku" in "Paku 5 cm")
+                    if (len(c_name) > 3 and c_name in k) or (len(k) > 3 and k in c_name):
                         unit_price = v
-                        match_type = "Partial"
                         break
             
             subtotal = unit_price * comp['koefisien']
             
-            # Akumulasi berdasarkan kategori
             if comp['tipe'] == 'Upah': biaya_upah += subtotal
             elif comp['tipe'] == 'Bahan': biaya_bahan += subtotal
             elif comp['tipe'] == 'Alat': biaya_alat += subtotal
             
-            detail_components.append(f"{comp['nama']} ({match_type})")
-
-        # Hitung Overhead dan Total
         total_dasar = biaya_upah + biaya_bahan + biaya_alat
         overhead_pct = st.session_state.get('overhead_pct', 15.0) / 100
         nilai_overhead = total_dasar * overhead_pct
@@ -256,9 +264,7 @@ def calculate_catalog_prices():
             'Biaya_Alat': biaya_alat,
             'Total_Dasar': total_dasar,
             'Overhead': nilai_overhead,
-            'Harga_Satuan': harga_final,
-            # Metadata untuk debugging
-            'Components_Count': len(item['komponen'])
+            'Harga_Satuan': harga_final
         })
         
     return pd.DataFrame(catalog_data)
@@ -267,7 +273,7 @@ def calculate_catalog_prices():
 # 4. USER INTERFACE (STREAMLIT LAYOUT)
 # ==========================================
 def main():
-    # --- SIDEBAR: PENGATURAN & DATA ---
+    # --- SIDEBAR ---
     st.sidebar.title("🔧 Data & Parameter")
     
     st.sidebar.subheader("1. Database Harga Dasar")
@@ -278,73 +284,57 @@ def main():
         st.sidebar.success(f"✅ {count} item harga dasar dimuat.")
         
     st.sidebar.subheader("2. Database Analisis (AHSP)")
-    f_analysis = st.sidebar.file_uploader("Upload File Divisi (Beton, dll)", type='csv', accept_multiple_files=True, key='upl_analisa')
+    f_analysis = st.sidebar.file_uploader("Upload File Divisi", type='csv', accept_multiple_files=True, key='upl_analisa')
     if f_analysis:
         dm = AHSPDataManager()
         total_items = 0
         for f in f_analysis:
-            # Gunakan nama file sebagai nama divisi
-            div_name = f.name.replace('.csv', '').replace('_', ' ').title()
+            div_name = f.name.replace('.csv', '').replace('AHSP CIPTA KARYA SE BINA KONSTRUKSI NO 30.xlsx - ', '').strip()
             count = dm.load_analysis_file(f, div_name)
             total_items += count
         st.sidebar.success(f"✅ {total_items} analisis pekerjaan dimuat.")
     
     st.sidebar.divider()
     st.session_state.overhead_pct = st.sidebar.slider("Margin Overhead & Profit (%)", 0, 25, 15)
-    st.session_state.ppn_pct = st.sidebar.number_input("PPN (%)", 11.0)
+    st.session_state.ppn_pct = st.sidebar.number_input("PPN (%)", value=11.0)
 
     # --- MAIN AREA ---
     st.title("🏗️ SmartRAB-SNI v2.0")
-    st.markdown("""
-    **Sistem Estimasi Biaya Konstruksi Terintegrasi (SE Bina Konstruksi No. 30/2025)**
-    *Fitur: Dynamic Parsing, Auto-Calculation, S-Curve Generation.*
-    """)
+    st.write("Sistem Estimasi Biaya Konstruksi Terintegrasi (SE Bina Konstruksi No. 30/2025)")
 
-    # Inisialisasi RAB DataFrame jika kosong
     if 'df_rab' not in st.session_state:
-        st.session_state.df_rab = pd.DataFrame(columns=)
+        st.session_state.df_rab = pd.DataFrame(columns=['Kode', 'Uraian', 'Volume', 'Satuan', 'Harga_Satuan', 'Total_Harga', 'Durasi_Minggu', 'Minggu_Mulai'])
 
-    # TABS UTAMA
-    tab1, tab2, tab3 = st.tabs()
+    tab1, tab2, tab3 = st.tabs(["📚 Katalog Analisa", "💰 RAB Proyek", "📈 Jadwal & Kurva S"])
 
-    # === TAB 1: KATALOG & PEMILIHAN ===
+    # === TAB 1: KATALOG ===
     with tab1:
         st.subheader("Katalog Analisis Harga Satuan")
-        
-        # Kalkulasi Ulang Harga setiap kali tab dibuka (Reaktif terhadap perubahan Overhead)
         df_catalog = calculate_catalog_prices()
         
         if df_catalog.empty:
-            st.info("👋 Silakan upload file CSV 'Upah Bahan' dan 'Analisis' di Sidebar untuk memulai.")
+            st.info("Silakan upload file CSV di sidebar.")
         else:
-            # Filter Divisi
-            divisi_list = + sorted(list(df_catalog.unique()))
-            selected_div = st.selectbox("Filter Divisi Pekerjaan:", divisi_list)
+            divisi_list = ["Semua"] + sorted(list(df_catalog['Divisi'].unique()))
+            selected_div = st.selectbox("Filter Divisi:", divisi_list)
             
-            if selected_div!= "Semua":
-                df_display = df_catalog == selected_div]
+            if selected_div != "Semua":
+                df_display = df_catalog[df_catalog['Divisi'] == selected_div]
             else:
                 df_display = df_catalog
             
             st.dataframe(
-                df_display], 
+                df_display[['Kode', 'Uraian', 'Harga_Satuan', 'Total_Dasar', 'Overhead']], 
                 use_container_width=True,
                 column_config={"Harga_Satuan": st.column_config.NumberColumn(format="Rp %d")}
             )
             
             st.divider()
-            st.subheader("➕ Tambah Item ke Proyek")
-            
-            # Form Input Item
-            c1, c2 = st.columns()
+            st.write("### Tambah Item ke RAB")
+            c1, c2 = st.columns([3, 1])
             with c1:
-                # Dropdown dengan Search
-                # Format Label: Nama Pekerjaan - Rp Harga
-                df_display['Label'] = df_display.apply(
-                    lambda x: f"[{x['Kode']}] {x['Uraian']} - Rp {x:,.0f}", axis=1
-                )
-                selected_item_label = st.selectbox("Pilih Item Pekerjaan:", df_display['Label'].unique())
-            
+                df_display['Label'] = df_display.apply(lambda x: f"[{x['Kode']}] {x['Uraian']} - Rp {x['Harga_Satuan']:,.0f}", axis=1)
+                selected_item_label = st.selectbox("Pilih Item:", df_display['Label'].unique())
             with c2:
                 vol_input = st.number_input("Volume", min_value=0.1, value=1.0)
             
@@ -352,136 +342,84 @@ def main():
             with c3:
                 dur_input = st.number_input("Durasi (Minggu)", min_value=1, value=1)
             with c4:
-                start_input = st.number_input("Minggu Ke- (Mulai)", min_value=1, value=1)
+                start_input = st.number_input("Minggu Mulai", min_value=1, value=1)
                 
-            if st.button("Masukkan ke RAB"):
-                # Ambil data lengkap item yang dipilih
-                item_data = df_display[df_display['Label'] == selected_item_label].iloc
-                
-                new_row = {
+            if st.button("➕ Masukkan ke RAB"):
+                item_data = df_display[df_display['Label'] == selected_item_label].iloc[0]
+                new_row = pd.DataFrame([{
                     'Kode': item_data['Kode'],
                     'Uraian': item_data['Uraian'],
                     'Volume': vol_input,
-                    'Satuan': 'Ls/Unit', # Idealnya diparsing juga
-                    'Harga_Satuan': item_data,
-                    'Total_Harga': vol_input * item_data,
+                    'Satuan': 'Ls/Unit',
+                    'Harga_Satuan': item_data['Harga_Satuan'],
+                    'Total_Harga': vol_input * item_data['Harga_Satuan'],
                     'Durasi_Minggu': int(dur_input),
                     'Minggu_Mulai': int(start_input)
-                }
-                
-                st.session_state.df_rab = pd.concat(
-                   )], 
-                    ignore_index=True
-                )
-                st.success(f"Sukses menambahkan: {item_data['Uraian']}")
+                }])
+                st.session_state.df_rab = pd.concat([st.session_state.df_rab, new_row], ignore_index=True)
+                st.success("Item ditambahkan!")
 
-    # === TAB 2: RAB PROYEK ===
+    # === TAB 2: RAB ===
     with tab2:
-        st.subheader("Rencana Anggaran Biaya (RAB)")
-        
+        st.subheader("Rencana Anggaran Biaya")
         if not st.session_state.df_rab.empty:
-            # Data Editor memungkinkan user mengubah volume langsung di tabel
             edited_df = st.data_editor(
                 st.session_state.df_rab,
                 column_config={
                     "Total_Harga": st.column_config.NumberColumn(format="Rp %d", disabled=True),
-                    "Harga_Satuan": st.column_config.NumberColumn(format="Rp %d", disabled=True),
-                    "Volume": st.column_config.NumberColumn(required=True)
+                    "Harga_Satuan": st.column_config.NumberColumn(format="Rp %d", disabled=True)
                 },
                 use_container_width=True,
                 num_rows="dynamic"
             )
             
-            # Update Session State jika ada edit
-            # Recalculate Total jika volume berubah
-            edited_df = edited_df['Volume'] * edited_df
+            # Recalculate Logic
+            edited_df['Total_Harga'] = edited_df['Volume'] * edited_df['Harga_Satuan']
             st.session_state.df_rab = edited_df
             
-            # Rekapitulasi Akhir
-            total_fisik = edited_df.sum()
+            total_fisik = edited_df['Total_Harga'].sum()
             ppn_val = total_fisik * (st.session_state.ppn_pct / 100)
             grand_total = total_fisik + ppn_val
             
-            st.divider()
-            col_tot1, col_tot2 = st.columns(2)
-            with col_tot1:
-                st.markdown("### Total Biaya Fisik")
-                st.markdown(f"# Rp {total_fisik:,.0f}")
-            with col_tot2:
-                st.markdown("### Grand Total (Inc. PPN)")
-                st.markdown(f"# Rp {grand_total:,.0f}")
-                
-            # Download Button
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                edited_df.to_excel(writer, sheet_name='RAB', index=False)
-            st.download_button(
-                label="📥 Download Excel RAB",
-                data=buffer,
-                file_name="RAB_Proyek_SNI.xlsx",
-                mime="application/vnd.ms-excel"
-            )
+            st.metric("Total Biaya Fisik", f"Rp {total_fisik:,.0f}")
+            st.metric("Grand Total (+PPN)", f"Rp {grand_total:,.0f}")
         else:
-            st.warning("RAB masih kosong. Silakan pilih item dari Tab Katalog.")
+            st.warning("RAB Kosong.")
 
     # === TAB 3: KURVA S ===
     with tab3:
-        st.subheader("Jadwal & Kurva S")
-        
-        if not st.session_state.df_rab.empty:
+        st.subheader("Kurva S Proyek")
+        if not st.session_state.df_rab.empty and st.session_state.df_rab['Total_Harga'].sum() > 0:
             df = st.session_state.df_rab.copy()
-            total_rab = df.sum()
+            total_rab = df['Total_Harga'].sum()
             
-            if total_rab > 0:
-                # 1. Hitung Bobot (%)
-                df = (df / total_rab) * 100
-                
-                # 2. Tentukan Timeline Proyek
-                max_week = int(df.apply(lambda x: x['Minggu_Mulai'] + x - 1, axis=1).max())
-                weeks = list(range(1, max_week + 2))
-                
-                # 3. Distribusi Bobot per Minggu
-                schedule_data = {w: 0.0 for w in weeks}
-                
-                for _, row in df.iterrows():
-                    start = int(row['Minggu_Mulai'])
-                    duration = int(row)
-                    bobot_per_week = row / duration
-                    
+            max_week = int(df.apply(lambda x: x['Minggu_Mulai'] + x['Durasi_Minggu'] - 1, axis=1).max())
+            weeks = list(range(1, max_week + 2))
+            schedule_data = {w: 0.0 for w in weeks}
+            
+            for _, row in df.iterrows():
+                start = int(row['Minggu_Mulai'])
+                duration = int(row['Durasi_Minggu'])
+                cost = row['Total_Harga']
+                if duration > 0:
+                    cost_per_week = cost / duration
+                    weight_per_week = (cost_per_week / total_rab) * 100
                     for w in range(start, start + duration):
                         if w in schedule_data:
-                            schedule_data[w] += bobot_per_week
-                
-                # 4. Dataframe Kurva S
-                df_curve = pd.DataFrame({
-                    'Minggu': weeks,
-                    'Rencana_Parsial': [schedule_data[w] for w in weeks]
-                })
-                df_curve = df_curve.cumsum()
-                
-                # 5. Visualisasi dengan Altair
-                base = alt.Chart(df_curve).encode(x='Minggu:O')
-                
-                bar = base.mark_bar(opacity=0.3, color='blue').encode(
-                    y=alt.Y('Rencana_Parsial', title='Bobot Mingguan (%)'),
-                    tooltip=
-                )
-                
-                line = base.mark_line(point=True, color='red').encode(
-                    y=alt.Y('Rencana_Kumulatif', title='Bobot Kumulatif (%)'),
-                    tooltip=
-                )
-                
-                combo_chart = (bar + line).properties(height=400).interactive()
-                
-                st.altair_chart(combo_chart, use_container_width=True)
-                
-                with st.expander("Lihat Data Tabel Kurva S"):
-                    st.dataframe(df_curve)
-            else:
-                st.error("Total RAB 0, tidak bisa membuat kurva.")
-        else:
-            st.info("Buat RAB terlebih dahulu untuk menjana Kurva S.")
+                            schedule_data[w] += weight_per_week
+            
+            df_curve = pd.DataFrame({
+                'Minggu': weeks,
+                'Bobot_Mingguan': [schedule_data[w] for w in weeks]
+            })
+            df_curve['Bobot_Kumulatif'] = df_curve['Bobot_Mingguan'].cumsum()
+            
+            base = alt.Chart(df_curve).encode(x='Minggu:O')
+            bar = base.mark_bar(opacity=0.3).encode(y='Bobot_Mingguan', tooltip=['Minggu', 'Bobot_Mingguan'])
+            line = base.mark_line(color='red', point=True).encode(y='Bobot_Kumulatif', tooltip=['Minggu', 'Bobot_Kumulatif'])
+            
+            st.altair_chart((bar + line).interactive(), use_container_width=True)
+            st.dataframe(df_curve)
 
 if __name__ == "__main__":
     main()
