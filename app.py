@@ -38,133 +38,139 @@ def detect_division(filename):
     return "Divisi 10: Lain-lain"
 
 # ==========================================
-# 1. INTELLECTUAL PARSER ENGINE
+# 1. BRUTAL PARSER ENGINE (PENYEDOT DEBU)
 # ==========================================
 def process_bulk_files(uploaded_files):
     """
-    Memproses banyak file sekaligus (Upah Bahan + Analisa).
+    Versi BRUTAL: Menyedot data tanpa peduli struktur header.
+    Asumsi: 
+    1. Ada kolom Teks (Uraian)
+    2. Ada kolom Angka (Koefisien/Harga)
     """
     msg_container = []
-    
-    # 1. Cari File Master Harga dulu (Prioritas)
-    master_file = None
-    analysis_files = []
-    
-    for f in uploaded_files:
-        if "upah" in f.name.lower() or "harga" in f.name.lower():
-            master_file = f
-        else:
-            analysis_files.append(f)
-            
-    # 2. Proses Master Harga
-    if master_file:
-        try:
-            # Reset pointer file
-            master_file.seek(0)
-            df_price = pd.read_csv(master_file)
-            
-            # Mapping Kolom Fleksibel
-            col_map = {c: c.lower() for c in df_price.columns}
-            price_data = []
-            
-            for _, row in df_price.iterrows():
-                # Cari kolom yang relevan
-                # Logic: Kolom pertama biasanya kode, kolom harga angka, uraian teks
-                vals = row.values
-                try:
-                    # Heuristic parsing (Menebak posisi kolom)
-                    p_kode = str(vals[0]) if len(vals) > 0 else ""
-                    p_uraian = str(vals[1]) if len(vals) > 1 else ""
-                    p_satuan = str(vals[2]) if len(vals) > 2 else "Unit"
-                    p_harga = vals[3] if len(vals) > 3 else 0
-                    
-                    if pd.notna(p_uraian) and "No" not in str(p_kode):
-                        price_data.append({
-                            'Kode': p_kode,
-                            'Komponen': p_uraian,
-                            'Satuan': p_satuan,
-                            'Harga_Dasar': clean_currency(p_harga),
-                            'Kategori': 'Upah' if 'L.' in str(p_kode) else ('Alat' if 'E.' in str(p_kode) else 'Material')
-                        })
-                except: continue
-                
-            if price_data:
-                df_new_prices = pd.DataFrame(price_data)
-                # Gabungkan dengan yang lama (Upsert)
-                st.session_state['df_prices'] = pd.concat([st.session_state['df_prices'], df_new_prices]).drop_duplicates(subset=['Komponen'], keep='last')
-                msg_container.append(f"✅ Master Harga Updated: {len(price_data)} items")
-        except Exception as e:
-            msg_container.append(f"❌ Error Master Harga: {str(e)}")
-
-    # 3. Proses Analisa (Batch)
     new_analyses = []
     
-    for f in analysis_files:
+    # Keyword untuk mendeteksi file Master Harga
+    price_keywords = ['upah', 'bahan', 'harga', 'basic', 'dasar']
+    
+    for f in uploaded_files:
         try:
-            f.seek(0)
             # Deteksi Divisi dari Nama File
-            detected_div = detect_division(f.name)
+            fname = f.name.lower()
+            detected_div = detect_division(fname)
             
-            # Baca CSV (Skip header metadata SNI yang biasanya di baris atas)
-            # Kita baca raw dan parse manual line-by-line agar aman
-            content = f.getvalue().decode('utf-8', errors='ignore').splitlines()
+            # Baca File (Header None = Baca apa adanya dari baris 0)
+            f.seek(0)
+            # Menggunakan engine 'python' agar lebih tahan banting terhadap error baris
+            df_raw = pd.read_csv(f, header=None, engine='python', on_bad_lines='skip')
             
-            curr_code, curr_desc = None, None
+            # CEK 1: Apakah ini File HARGA DASAR?
+            is_price_file = any(k in fname for k in price_keywords)
             
-            for line in content:
-                parts = line.split(',') # Simple CSV split
-                if len(parts) < 3: continue
-                
-                c1 = parts[0].strip().replace('"', '')
-                c2 = parts[1].strip().replace('"', '')
-                c3 = parts[2].strip().replace('"', '')
-                
-                # Deteksi Header (Kode A.x.x)
-                if re.match(r'^A\.|^[\d]+\.', c1) and len(c2) > 5:
-                    curr_code = c1
-                    curr_desc = c2
-                    continue
-                elif re.match(r'^A\.|^[\d]+\.', c2) and len(c3) > 5:
-                    curr_code = c2
-                    curr_desc = c3
-                    continue
-                
-                # Deteksi Komponen (Ada Koefisien)
-                # Mencari angka desimal di kolom ke-4 atau 5
-                coef = 0
-                comp_name = ""
-                
-                # Coba cari koefisien di bagian belakang
-                for i in range(3, len(parts)):
-                    try:
-                        val = parts[i].replace('"', '').strip()
-                        if re.match(r'^\d+(\.\d+)?$', val):
-                            coef = float(val)
-                            # Jika ketemu koefisien, ambil nama di kolom sebelumnya
-                            if coef > 0:
-                                # Nama komponen biasanya di c2 atau c3
-                                comp_name = c2 if len(c2) > 2 else c3
-                                break
-                    except: pass
-                
-                if curr_code and coef > 0 and len(comp_name) > 2:
-                    new_analyses.append({
-                        'Kode_Analisa': curr_code,
-                        'Uraian_Pekerjaan': curr_desc, # Deskripsi dari Header
-                        'Komponen': comp_name,
-                        'Koefisien': coef,
-                        'Divisi_Ref': detected_div # Metadata tambahan
-                    })
+            if is_price_file:
+                # Logika Master Harga: Cari baris yang ada 'Rp' atau angka besar
+                price_data = []
+                for _, row in df_raw.iterrows():
+                    # Ubah row jadi list string untuk dicek
+                    vals = [str(x).strip() for x in row.values if pd.notna(x)]
                     
-        except Exception as e:
-            msg_container.append(f"⚠️ Skip {f.name}: {str(e)}")
+                    # Cari angka harga (biasanya > 100 dan bukan tahun)
+                    found_price = 0
+                    found_desc = ""
+                    found_unit = "Unit"
+                    found_code = ""
+                    
+                    for v in vals:
+                        # Coba bersihkan format uang
+                        clean_v = clean_currency(v)
+                        if clean_v > 50: # Asumsi harga minimal 50 perak
+                            found_price = clean_v
+                        elif len(v) > 3 and not v[0].isdigit(): # Kemungkinan Deskripsi
+                            found_desc = v
+                        elif len(v) <= 5 and v.isalpha(): # Kemungkinan Satuan
+                            found_unit = v
+                        elif ("M." in v or "L." in v or "E." in v): # Kemungkinan Kode
+                            found_code = v
+                            
+                    if found_price > 0 and found_desc:
+                        cat = 'Upah' if 'L.' in found_code else ('Alat' if 'E.' in found_code else 'Material')
+                        price_data.append({
+                            'Kode': found_code, 'Komponen': found_desc, 
+                            'Satuan': found_unit, 'Harga_Dasar': found_price, 'Kategori': cat
+                        })
+                
+                if price_data:
+                    df_new = pd.DataFrame(price_data)
+                    st.session_state['df_prices'] = pd.concat([st.session_state['df_prices'], df_new]).drop_duplicates(subset=['Komponen'], keep='last')
+                    msg_container.append(f"✅ Master Harga: {f.name} ({len(price_data)} item)")
+            
+            else:
+                # CEK 2: Ini File ANALISA
+                # Logika: Cari baris yang punya Angka Kecil (Koefisien) dan Teks
+                file_items = 0
+                current_parent_code = "X.0.0"
+                current_parent_desc = f"Item dari {f.name}"
+                
+                # Regex untuk mendeteksi Kode Analisa (Contoh: A.2.2.1 atau 2.2.1)
+                regex_code = re.compile(r'^([A-Z]\.|[\d]+\.)[\d\.]+$')
+                
+                for _, row in df_raw.iterrows():
+                    # Ambil nilai yang tidak kosong
+                    vals = [v for v in row.values if pd.notna(v) and str(v).strip() != '']
+                    if len(vals) < 2: continue
+                    
+                    # Cek apakah ini HEADER PEKERJAAN? (Biasanya di kolom awal ada Kode A.x.x)
+                    str_vals = [str(x).strip() for x in vals]
+                    potential_code = str_vals[0]
+                    
+                    if regex_code.match(potential_code) and len(str_vals) >= 2:
+                        current_parent_code = potential_code
+                        # Deskripsi biasanya elemen kedua terpanjang
+                        current_parent_desc = max(str_vals, key=len) 
+                        continue
+                        
+                    # Cek apakah ini KOMPONEN? (Harus ada angka desimal/koefisien)
+                    has_coef = False
+                    coef_val = 0
+                    comp_name = ""
+                    
+                    for v in vals:
+                        try:
+                            # Cek apakah angka float (koefisien)
+                            vv = float(str(v).replace(',', '.'))
+                            if 0.0001 <= vv <= 500.0: # Range koefisien masuk akal
+                                has_coef = True
+                                coef_val = vv
+                        except:
+                            # Jika bukan angka, mungkin ini nama komponen
+                            s = str(v).strip()
+                            if len(s) > 3 and not regex_code.match(s): # Bukan kode
+                                comp_name = s
+                    
+                    if has_coef and comp_name and current_parent_code != "X.0.0":
+                        new_analyses.append({
+                            'Kode_Analisa': current_parent_code,
+                            'Uraian_Pekerjaan': current_parent_desc,
+                            'Komponen': comp_name,
+                            'Koefisien': coef_val,
+                            'Divisi_Ref': detected_div
+                        })
+                        file_items += 1
+                
+                if file_items > 0:
+                    msg_container.append(f"✅ Analisa: {f.name} ({file_items} baris)")
+                else:
+                    msg_container.append(f"⚠️ {f.name}: Format tidak standar, mencoba skip.")
 
+        except Exception as e:
+            msg_container.append(f"❌ Error Fatal {f.name}: {str(e)}")
+
+    # Simpan Hasil Analisa
     if new_analyses:
         df_new = pd.DataFrame(new_analyses)
         st.session_state['df_analysis'] = pd.concat([st.session_state['df_analysis'], df_new], ignore_index=True)
         # Hapus duplikat
         st.session_state['df_analysis'] = st.session_state['df_analysis'].drop_duplicates(subset=['Kode_Analisa', 'Komponen'])
-        msg_container.append(f"✅ Analisa Updated: {len(new_analyses)} baris komponen baru.")
         
     return msg_container
 
@@ -253,7 +259,7 @@ def render_sidebar():
     
     if not df_det.empty:
         # Grouping untuk Sidebar Dropdown
-        unique_items = df_det.drop_duplicates(subset=['Kode_Analisa']).copy() # Tambah .copy() agar aman
+        unique_items = df_det.drop_duplicates(subset=['Kode_Analisa']).copy() 
         
         # --- PERBAIKAN ERROR DI SINI ---
         # 1. Pastikan kolom Divisi_Ref ada
@@ -302,6 +308,7 @@ def render_sidebar():
                 st.session_state.df_rab = pd.concat([st.session_state.df_rab, pd.DataFrame([new_row])], ignore_index=True)
                 calculate_system()
                 st.rerun()
+
 # ==========================================
 # 4. INISIALISASI DATA (SEED)
 # ==========================================
@@ -494,4 +501,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
