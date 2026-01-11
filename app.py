@@ -156,7 +156,7 @@ def render_ahsp_selector():
 # ==========================================
 st.set_page_config(page_title="SmartRAB-SNI", layout="wide")
 
-# --- 1. Inisialisasi Data (SEED DATA / DEFAULT) ---
+# --- 1. Inisialisasi Data (VERSI ANTI-CRASH) ---
 def initialize_data():
     defaults = {
         'global_overhead': 15.0,
@@ -168,7 +168,7 @@ def initialize_data():
         if key not in st.session_state:
             st.session_state[key] = val
 
-    # SEED DATA: HARGA DASAR (Default jika kosong)
+    # SEED DATA: HARGA DASAR
     if 'df_prices' not in st.session_state:
         data_prices = {
             'Kode': ['M.01', 'M.02', 'M.03', 'M.04', 'L.01', 'L.02', 'L.03', 'L.04', 'E.01'],
@@ -179,18 +179,13 @@ def initialize_data():
         }
         st.session_state['df_prices'] = pd.DataFrame(data_prices)
 
-    # SEED DATA: ANALISA (Default jika kosong)
+    # SEED DATA: ANALISA
     if 'df_analysis' not in st.session_state:
-        # Kita gabungkan data dummy Cipta Karya yang ada di kode awal menjadi struktur database
         data_analysis = {
             'Kode_Analisa': [
-                # Div 1: Pagar Sementara
                 'A.1.1', 'A.1.1', 'A.1.1',
-                # Div 2: Galian
                 'A.2.1', 'A.2.1',
-                # Div 3: Pondasi
                 'A.3.1', 'A.3.1', 'A.3.1', 'A.3.1', 'A.3.1',
-                # Div 4: Dinding
                 'A.4.1', 'A.4.1', 'A.4.1', 'A.4.1'
             ],
             'Uraian_Pekerjaan': [
@@ -200,20 +195,21 @@ def initialize_data():
                 'Pasangan Dinding Bata Merah', 'Pasangan Dinding Bata Merah', 'Pasangan Dinding Bata Merah', 'Pasangan Dinding Bata Merah'
             ],
             'Komponen': [
-                'Kayu Balok', 'Paku', 'Pekerja', # Pagar
-                'Pekerja', 'Mandor', # Galian
-                'Batu Kali', 'Semen Portland', 'Pasir Beton', 'Pekerja', 'Tukang Batu', # Pondasi
-                'Bata Merah', 'Semen Portland', 'Pasir Pasang', 'Pekerja' # Dinding
+                'Kayu Balok', 'Paku', 'Pekerja', 
+                'Pekerja', 'Mandor', 
+                'Batu Kali', 'Semen Portland', 'Pasir Beton', 'Pekerja', 'Tukang Batu', 
+                'Bata Merah', 'Semen Portland', 'Pasir Pasang', 'Pekerja' 
             ],
             'Koefisien': [
-                0.5, 0.1, 0.4, # Pagar
-                0.75, 0.025, # Galian
-                1.2, 163.0, 0.52, 1.5, 0.75, # Pondasi
-                70.0, 11.5, 0.04, 0.3 # Dinding (Asumsi)
+                0.5, 0.1, 0.4, 
+                0.75, 0.025, 
+                1.2, 163.0, 0.52, 1.5, 0.75, 
+                70.0, 11.5, 0.04, 0.3 
             ]
         }
         st.session_state['df_analysis'] = pd.DataFrame(data_analysis)
 
+    # SEED DATA: RAB (Default jika kosong)
     if 'df_rab' not in st.session_state:
         data_rab = {
             'No': [1],
@@ -229,12 +225,17 @@ def initialize_data():
         }
         st.session_state['df_rab'] = pd.DataFrame(data_rab)
     
-    if 'Durasi_Minggu' not in st.session_state['df_rab'].columns:
-        st.session_state['df_rab']['Durasi_Minggu'] = 1
-        st.session_state['df_rab']['Minggu_Mulai'] = 1
+    # --- PERBAIKAN CRASH: Pastikan Kolom Kunci Selalu Ada ---
+    # Ini mencegah KeyError jika sisa cache sesi sebelumnya rusak
+    required_cols = ['Kode_Analisa_Ref', 'Durasi_Minggu', 'Minggu_Mulai']
+    for col in required_cols:
+        if col not in st.session_state['df_rab'].columns:
+            if col == 'Kode_Analisa_Ref':
+                st.session_state['df_rab'][col] = '' # Isi string kosong agar astype(str) tidak error
+            else:
+                st.session_state['df_rab'][col] = 1 # Default angka
         
     calculate_system()
-
 # --- 2. Mesin Logika Utama (SMART MATCHING UPGRADE) ---
 def calculate_system():
     df_p = st.session_state['df_prices'].copy()
@@ -932,3 +933,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
